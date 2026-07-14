@@ -43,7 +43,7 @@ public static class UserAccountRepository
 
     private static readonly (string Username, string Password, string Role, string DisplayName)[] RequiredUsers =
     [
-        ("Admin", "Admin1", "Admin", "Admin"),
+        ("Admin", "Washington", "Admin", "Admin"),
         ("Washington", "Washington1", "Backoffice", "Washington"),
         ("Staff", "Staff1", "Staff", "Staff"),
         ("Auditor", "auditor1", "Auditor", "Auditor"),

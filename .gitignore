@@ -19,3 +19,8 @@ FrislEams.Web/appsettings.Development.json
 .~*
 
 FrislEams.Web/Models/playground-1.mongodb.js
+
+.dotnet-sdk8/
+.dotnet-sdk9/
+FrislEams.Web/.frisleams_run.log
+*.log

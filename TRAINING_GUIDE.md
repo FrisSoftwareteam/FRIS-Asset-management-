@@ -11,7 +11,7 @@ Its purpose is to provide a clear understanding of:
 - what has already been implemented
 - what remains for full production readiness
 
-The current solution is a working ASP.NET Core 8 web application built to demonstrate and support asset lifecycle management from registration through assignment, repair, loan, audit, and reporting.
+The current solution is a working ASP.NET Core 9 web application built to demonstrate and support asset lifecycle management from registration through assignment, repair, loan, audit, and reporting.
 
 ## Solution Overview
 FRISL EAMS helps the organization manage physical assets in a structured, auditable way.
@@ -33,7 +33,7 @@ The application is built with:
 - Blazor Server for dashboard interaction
 - Entity Framework Core for data access
 - SQLite as the current database
-- .NET 8 runtime
+- .NET 9 runtime
 
 Current local runtime details:
 - Application folder: `FrislEams.Web`

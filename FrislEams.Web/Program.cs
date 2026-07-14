@@ -14,9 +14,11 @@ AppDbContext.RegisterClassMaps();
 
 var builder = WebApplication.CreateBuilder(args);
 
-var port = Environment.GetEnvironmentVariable("PORT") ?? "5000";
-// Single IPv4 bind only — dual 0.0.0.0 + [::] UseUrls causes "address already in use" on Render.
-builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+var port = Environment.GetEnvironmentVariable("PORT");
+var listenAddress = string.IsNullOrWhiteSpace(port) ? "127.0.0.1" : "0.0.0.0";
+port ??= "5000";
+// Bind to localhost during local runs, but keep Render-compatible wildcard binding when PORT is provided.
+builder.WebHost.UseUrls($"http://{listenAddress}:{port}");
 
 builder.Services.AddControllersWithViews();
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
@@ -100,15 +102,23 @@ try
 {
     using var scope = app.Services.CreateScope();
     var mongoOptions = scope.ServiceProvider.GetRequiredService<IOptions<MongoDbOptions>>().Value;
-    var mongoClient = scope.ServiceProvider.GetRequiredService<IMongoClient>();
 
-    await mongoClient.GetDatabase(mongoOptions.DatabaseName).RunCommandAsync<BsonDocument>(
-        new BsonDocument("ping", 1));
-    Console.WriteLine("FRISL EAMS startup: MongoDB ping successful.");
+    if (string.IsNullOrWhiteSpace(mongoOptions.ConnectionString))
+    {
+        Console.WriteLine("FRISL EAMS startup: MongoDB skipped because no connection string is configured.");
+    }
+    else
+    {
+        var mongoClient = scope.ServiceProvider.GetRequiredService<IMongoClient>();
 
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await SeedData.InitializeAsync(db);
-    Console.WriteLine("FRISL EAMS startup: database ready.");
+        await mongoClient.GetDatabase(mongoOptions.DatabaseName).RunCommandAsync<BsonDocument>(
+            new BsonDocument("ping", 1));
+        Console.WriteLine("FRISL EAMS startup: MongoDB ping successful.");
+
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await SeedData.InitializeAsync(db);
+        Console.WriteLine("FRISL EAMS startup: database ready.");
+    }
 }
 catch (Exception ex)
 {
