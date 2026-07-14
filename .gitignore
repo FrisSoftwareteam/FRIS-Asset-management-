@@ -22,5 +22,6 @@ FrislEams.Web/Models/playground-1.mongodb.js
 
 .dotnet-sdk8/
 .dotnet-sdk9/
+.dotnet-sdk10/
 FrislEams.Web/.frisleams_run.log
 *.log

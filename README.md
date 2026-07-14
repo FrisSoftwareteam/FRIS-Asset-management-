@@ -25,7 +25,7 @@ This implementation follows your FRISL EAMS documentation using:
 - Lightweight RBAC guard for sensitive actions (`X-Role` header or `?role=` query)
 
 ## Run
-1. Install .NET 9 SDK
+1. Install .NET 10 SDK
 2. From project root:
    - `cd FrislEams.Web`
    - `dotnet restore`
