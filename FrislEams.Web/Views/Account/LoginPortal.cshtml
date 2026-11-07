@@ -2,92 +2,38 @@
     Layout = "_LoginLayout";
     var portal = ViewBag.Portal as string ?? "Backoffice";
     var demoUser = ViewBag.DemoUser as string ?? portal;
+    var returnUrl = ViewBag.ReturnUrl as string;
+    ViewData["Title"] = $"{portal} Portal Sign In";
+
     var portalDesc = portal switch
     {
-        "Admin" => "System administration, user management, vendors, and approvals",
-        "Auditor" => "Audits, compliance verification, and asset reporting",
-        "Staff" => "Assignments, requests, repairs, and loan workflows",
-        _ => "Asset administration, operations, and master data management"
+        "Admin" => "System administration, user management, vendors and approvals.",
+        "Auditor" => "Audits, compliance verification and asset reporting.",
+        "Staff" => "Your assigned assets, requests, repairs and loans.",
+        _ => "Asset administration, operations and master data management."
     };
+
+    ViewData["FormAction"] = string.IsNullOrEmpty(returnUrl)
+        ? $"/Account/Login/{portal}"
+        : $"/Account/Login/{portal}?returnUrl={Uri.EscapeDataString(returnUrl)}";
+    ViewData["ButtonText"] = $"Sign in to {portal} Portal";
+    ViewData["UserPlaceholder"] = $"Enter your {portal.ToLowerInvariant()} username";
+    ViewData["DemoUsers"] = portal == "Staff"
+        ? new (string Label, string User, string Password)[] { ("Staff", "Staff", "Staff1"), ("IT HOD", "ithod", "HodIt1") }
+        : new (string Label, string User, string Password)[]
+          {
+              (demoUser, demoUser, portal == "Auditor" ? "auditor1" : portal == "Admin" ? "Admin1" : "Washington1")
+          };
+
+    var backHref = string.IsNullOrEmpty(returnUrl)
+        ? "/Account/Login"
+        : $"/Account/Login?returnUrl={Uri.EscapeDataString(returnUrl)}";
 }
 
-<div class="signin-page">
-    <div class="signin-shell">
-        <section class="signin-panel signin-panel-solo">
-            <div class="signin-card signin-card-minimal">
-                <div class="signin-branding">
-                    <img src="~/firstregistrars-logo.png" alt="First Registrars &amp; Investor Services" class="signin-logo" />
-                    <div class="signin-subtitle">Enterprise Asset Management System</div>
-                </div>
+<span class="auth-portal-tag">@portal Portal</span>
+<h2 class="auth-title">Sign in</h2>
+<p class="auth-desc">@portalDesc</p>
 
-                <div class="signin-title-wrap">
-                    <div class="signin-title">@portal Portal</div>
-                    <div class="signin-desc">@portalDesc</div>
-                </div>
+<partial name="_LoginForm" />
 
-                <div class="signin-gold-bar"></div>
-
-                @if (ViewBag.Error != null)
-                {
-                    <div class="alert alert-error signin-alert">⚠️ @ViewBag.Error</div>
-                }
-
-                <form method="post" action="/Account/Login/@portal?returnUrl=@ViewBag.ReturnUrl" class="signin-form" id="loginForm">
-                    @Html.AntiForgeryToken()
-                    <div class="form-group">
-                        <label for="username" class="form-label">Username</label>
-                        <input type="text" id="username" name="username" class="form-control signin-input" placeholder="Enter your @portal username"
-                               autocomplete="username" autofocus required />
-                    </div>
-                    <div class="form-group">
-                        <label for="password" class="form-label">Password</label>
-                        <input type="password" id="password" name="password" class="form-control signin-input" placeholder="Enter your password"
-                               autocomplete="current-password" required />
-                    </div>
-                    <button type="submit" class="signin-btn">Sign In to @portal Portal <span aria-hidden="true">→</span></button>
-                </form>
-
-                <div class="signin-demo-note signin-demo-note-minimal">
-                    <div class="signin-demo-head">
-                        <strong>Demo - Click to Auto-Fill</strong>
-                    </div>
-                    <div class="signin-demo-grid signin-demo-grid-inline signin-demo-grid-portals">
-                        @if (portal == "Staff")
-                        {
-                            <button type="button" class="role-pill role-pill-minimal portal-demo-btn" data-user="Staff" data-password="Staff1">
-                                <span class="role-pill-title">Staff</span>
-                            </button>
-                            <button type="button" class="role-pill role-pill-minimal portal-demo-btn" data-user="ithod" data-password="HodIt1">
-                                <span class="role-pill-title">IT HOD</span>
-                            </button>
-                        }
-                        else
-                        {
-                            <button type="button" class="role-pill role-pill-minimal portal-demo-btn" data-user="@demoUser" data-password="@(portal == "Auditor" ? "auditor1" : portal == "Admin" ? "Admin1" : "Washington1")">
-                                <span class="role-pill-title">@demoUser</span>
-                            </button>
-                        }
-                    </div>
-                </div>
-
-                <div class="portal-back-link">
-                    <a href="/Account/Login@(ViewBag.ReturnUrl != null ? $"?returnUrl={Uri.EscapeDataString(ViewBag.ReturnUrl as string ?? "")}" : "")">← Back to sign in</a>
-                </div>
-
-                <div class="signin-footer">
-                    &copy; @DateTime.Now.Year First Registrars &amp; Investor Services Ltd.<br />
-                    All rights reserved. Authorised access only.
-                </div>
-            </div>
-        </section>
-    </div>
-</div>
-
-<script>
-    document.querySelectorAll('.portal-demo-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.getElementById('username').value = btn.dataset.user;
-            document.getElementById('password').value = btn.dataset.password;
-        });
-    });
-</script>
+<p class="auth-help"><a class="auth-link" href="@backHref">← Back to main sign in</a></p>

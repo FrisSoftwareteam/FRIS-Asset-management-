@@ -1,79 +1,22 @@
 @{
     Layout = "_LoginLayout";
+    ViewData["Title"] = "Sign In";
     var returnUrl = ViewBag.ReturnUrl as string;
+
+    ViewData["FormAction"] = string.IsNullOrEmpty(returnUrl)
+        ? "/Account/Login"
+        : $"/Account/Login?returnUrl={Uri.EscapeDataString(returnUrl)}";
+    ViewData["ButtonText"] = "Sign in";
+    ViewData["DemoUsers"] = new (string Label, string User, string Password)[]
+    {
+        ("Backoffice", "Washington", "Washington1"),
+        ("Admin", "Admin", "Admin1"),
+        ("Auditor", "Auditor", "auditor1"),
+        ("Staff", "Staff", "Staff1")
+    };
 }
 
-<div class="signin-page">
-    <div class="signin-shell">
-        <section class="signin-panel signin-panel-solo">
-            <div class="signin-card signin-card-minimal">
-                <div class="signin-branding">
-                    <img src="~/firstregistrars-logo.png" alt="First Registrars &amp; Investor Services" class="signin-logo" />
-                    <div class="signin-subtitle">Enterprise Asset Management System</div>
-                </div>
+<h2 class="auth-title">Welcome back</h2>
+<p class="auth-desc">Sign in to the Enterprise Asset Management System. You'll be taken to your portal automatically.</p>
 
-                <div class="signin-title-wrap">
-                    <div class="signin-title">Sign In</div>
-                    <div class="signin-desc">Enter your username and password to access your portal</div>
-                </div>
-
-                <div class="signin-gold-bar"></div>
-
-                @if (ViewBag.Error != null)
-                {
-                    <div class="alert alert-error signin-alert">⚠️ @ViewBag.Error</div>
-                }
-
-                <form method="post" action="/Account/Login?returnUrl=@returnUrl" class="signin-form" id="loginForm">
-                    @Html.AntiForgeryToken()
-                    <div class="form-group">
-                        <label for="username" class="form-label">Username</label>
-                        <input type="text" id="username" name="username" class="form-control signin-input" placeholder="Enter your username"
-                               autocomplete="username" autofocus required />
-                    </div>
-                    <div class="form-group">
-                        <label for="password" class="form-label">Password</label>
-                        <input type="password" id="password" name="password" class="form-control signin-input" placeholder="Enter your password"
-                               autocomplete="current-password" required />
-                    </div>
-                    <button type="submit" class="signin-btn">Sign In <span aria-hidden="true">→</span></button>
-                </form>
-
-                <div class="signin-demo-note signin-demo-note-minimal">
-                    <div class="signin-demo-head">
-                        <strong>Demo - Click to Auto-Fill</strong>
-                    </div>
-                    <div class="signin-demo-grid signin-demo-grid-inline signin-demo-grid-portals">
-                        <button type="button" class="role-pill role-pill-minimal portal-demo-btn" data-user="Washington" data-password="Washington1">
-                            <span class="role-pill-title">Backoffice Portal</span>
-                        </button>
-                        <button type="button" class="role-pill role-pill-minimal portal-demo-btn" data-user="Admin" data-password="Admin1">
-                            <span class="role-pill-title">Admin Portal</span>
-                        </button>
-                        <button type="button" class="role-pill role-pill-minimal portal-demo-btn" data-user="Auditor" data-password="auditor1">
-                            <span class="role-pill-title">Auditor Portal</span>
-                        </button>
-                        <button type="button" class="role-pill role-pill-minimal portal-demo-btn" data-user="Staff" data-password="Staff1">
-                            <span class="role-pill-title">Staff Portal</span>
-                        </button>
-                    </div>
-                </div>
-
-                <div class="signin-footer">
-                    &copy; @DateTime.Now.Year First Registrars &amp; Investor Services Ltd.<br />
-                    All rights reserved. Authorised access only.
-                </div>
-            </div>
-        </section>
-    </div>
-</div>
-
-<script>
-    const demoPassword = 'Admin1';
-    document.querySelectorAll('.portal-demo-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.getElementById('username').value = btn.dataset.user;
-            document.getElementById('password').value = btn.dataset.password || demoPassword;
-        });
-    });
-</script>
+<partial name="_LoginForm" />
