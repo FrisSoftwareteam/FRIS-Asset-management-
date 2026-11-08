@@ -215,6 +215,11 @@ public static class PortalService
             return PortalCapabilities.CanManageUsers(portal);
         }
 
+        if (path.StartsWith("/scan"))
+        {
+            return true;
+        }
+
         if (path.StartsWith("/dataimport"))
         {
             return PortalCapabilities.CanManageSystemSettings(portal);

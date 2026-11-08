@@ -13,6 +13,7 @@
     </div>
     <nav class="portal-sidebar-nav">
         <a href="@portalHome" class="portal-nav-item @(IsActive("/Portal/Staff") ? "active" : "")"><span class="nav-ico">📊</span> Dashboard</a>
+        <a href="/Scan" class="portal-nav-item @(IsActive("/Scan") ? "active" : "")"><span class="nav-ico">📷</span> Scan asset</a>
         <a asp-controller="MyAssets" asp-action="Index" class="portal-nav-item @(IsActive("/MyAssets") ? "active" : "")"><span class="nav-ico">🏷️</span> My Assets</a>
         <a asp-controller="Transfers" asp-action="Create" class="portal-nav-item @(IsActive("/Transfers") ? "active" : "")"><span class="nav-ico">🔄</span> Request Transfer</a>
         <a asp-controller="Workflow" asp-action="Loans" class="portal-nav-item @(IsActive("/Workflow/Loans") ? "active" : "")"><span class="nav-ico">↩️</span> Asset Return</a>
