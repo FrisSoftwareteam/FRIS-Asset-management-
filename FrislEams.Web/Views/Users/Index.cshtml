@@ -1,58 +1,219 @@
 @model List<FrislEams.Web.Models.UserAccount>
 @{
-    ViewData["Title"] = "User Management";
-    var roles = ViewBag.RoleOptions as string[] ?? Array.Empty<string>();
+    ViewData["Title"] = "Users";
+    var allUsers = ViewBag.AllUsers as List<FrislEams.Web.Models.UserAccount> ?? Model;
+    var departmentNames = ViewBag.DepartmentNames as Dictionary<int, string> ?? new();
+    var canDelete = ViewBag.CanDelete as bool? ?? false;
+    var currentUsername = ViewBag.CurrentUsername as string;
+    var query = ViewBag.Query as string;
+    var roleFilter = ViewBag.Role as string;
+    var statusFilter = ViewBag.Status as string;
+
+    var activeCount = allUsers.Count(u => u.IsActive);
+    var mustChangeCount = allUsers.Count(u => u.MustChangePassword);
+    var roleCounts = allUsers
+        .GroupBy(u => string.IsNullOrWhiteSpace(u.Role) ? "Unassigned" : u.Role)
+        .OrderByDescending(g => g.Count())
+        .Select(g => (Role: g.Key, Count: g.Count()))
+        .ToList();
+    var filtered = !string.IsNullOrWhiteSpace(query) || !string.IsNullOrWhiteSpace(roleFilter) || !string.IsNullOrWhiteSpace(statusFilter);
+
+    string FilterUrl(string? role, string? status)
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(query)) parts.Add("q=" + Uri.EscapeDataString(query));
+        if (!string.IsNullOrWhiteSpace(role)) parts.Add("role=" + Uri.EscapeDataString(role));
+        if (!string.IsNullOrWhiteSpace(status)) parts.Add("status=" + status);
+        return "/Users" + (parts.Count > 0 ? "?" + string.Join("&", parts) : "");
+    }
+
+    static string RoleTone(string? role) => role switch
+    {
+        "Admin" => "role-admin",
+        "Backoffice" => "role-backoffice",
+        "Auditor" => "role-auditor",
+        "DepartmentHead" => "role-head",
+        _ => "role-staff"
+    };
 }
 
-<div class="page-header">
-    <div class="page-title">
-        <h1>User Management</h1>
-        <p class="page-subtitle">Administration → Users — create, activate, deactivate, and reset passwords</p>
-    </div>
-    <a asp-action="Create" class="btn btn-primary">+ Create User</a>
-</div>
+<div class="dash">
+    <section class="dash-hero">
+        <div>
+            <p class="dash-eyebrow">Administration</p>
+            <h1 class="dash-title">Users</h1>
+            <p class="dash-sub">Create accounts, control access and reset passwords.</p>
+        </div>
+        <div class="dash-actions">
+            <a class="dash-btn dash-btn-primary" href="/Users/Create">@UiIcons.Svg("plus") Create user</a>
+            <a class="dash-btn" href="/UserRoles">@UiIcons.Svg("shield") Roles</a>
+        </div>
+    </section>
 
-<form method="get" class="filter-bar" style="margin-bottom:1rem;">
-    <input type="text" name="q" value="@ViewBag.Query" placeholder="Search by name, email, or employee ID" class="form-control" style="max-width:320px;display:inline-block;" />
-    <button type="submit" class="btn btn-outline">Search</button>
-</form>
+    <section class="dash-kpis" aria-label="User figures">
+        <a class="dash-kpi" href="@FilterUrl(null, null)">
+            <span class="dash-kpi-icon">@UiIcons.Svg("users")</span>
+            <span class="dash-kpi-label">All users</span>
+            <span class="dash-kpi-value">@allUsers.Count</span>
+            <span class="dash-kpi-meta">@roleCounts.Count role@(roleCounts.Count == 1 ? "" : "s")</span>
+        </a>
+        <a class="dash-kpi" href="@FilterUrl(roleFilter, "active")">
+            <span class="dash-kpi-icon">@UiIcons.Svg("check")</span>
+            <span class="dash-kpi-label">Active</span>
+            <span class="dash-kpi-value">@activeCount</span>
+            <span class="dash-kpi-meta">Can sign in</span>
+        </a>
+        <a class="dash-kpi @(allUsers.Count - activeCount > 0 ? "is-alert" : "")" href="@FilterUrl(roleFilter, "inactive")">
+            <span class="dash-kpi-icon">@UiIcons.Svg("eye")</span>
+            <span class="dash-kpi-label">Deactivated</span>
+            <span class="dash-kpi-value">@(allUsers.Count - activeCount)</span>
+            <span class="dash-kpi-meta">Blocked from signing in</span>
+        </a>
+        <div class="dash-kpi">
+            <span class="dash-kpi-icon">@UiIcons.Svg("clock")</span>
+            <span class="dash-kpi-label">Password change due</span>
+            <span class="dash-kpi-value">@mustChangeCount</span>
+            <span class="dash-kpi-meta">Asked to set a new password at next sign-in</span>
+        </div>
+    </section>
 
-<div class="table-card">
-    <table class="data-table">
-        <thead>
-            <tr>
-                <th>Employee ID</th>
-                <th>Name</th>
-                <th>Email / Username</th>
-                <th>Role</th>
-                <th>Status</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-        @foreach (var user in Model)
+    <article class="dash-card">
+        <form method="get" action="/Users" class="ux-toolbar">
+            <label class="ux-search">
+                @UiIcons.Svg("search")
+                <input type="search" name="q" value="@query" placeholder="Search by name, username or employee ID" aria-label="Search users" />
+            </label>
+            @if (!string.IsNullOrWhiteSpace(roleFilter))
+            {
+                <input type="hidden" name="role" value="@roleFilter" />
+            }
+            @if (!string.IsNullOrWhiteSpace(statusFilter))
+            {
+                <input type="hidden" name="status" value="@statusFilter" />
+            }
+            <button type="submit" class="dash-btn">Search</button>
+            @if (filtered)
+            {
+                <a class="dash-link" href="/Users">Clear filters</a>
+            }
+        </form>
+
+        <div class="ux-chips" role="group" aria-label="Filter by role">
+            <a class="ux-chip @(string.IsNullOrWhiteSpace(roleFilter) ? "is-on" : "")" href="@FilterUrl(null, statusFilter)">All roles <span>@allUsers.Count</span></a>
+            @foreach (var rc in roleCounts)
+            {
+                <a class="ux-chip @(string.Equals(roleFilter, rc.Role, StringComparison.OrdinalIgnoreCase) ? "is-on" : "")" href="@FilterUrl(rc.Role, statusFilter)">@DashText.Humanize(rc.Role) <span>@rc.Count</span></a>
+            }
+        </div>
+
+        @if (!Model.Any())
         {
-            <tr>
-                <td>@(user.EmployeeId ?? "—")</td>
-                <td>@user.DisplayName</td>
-                <td>@user.Username</td>
-                <td>@user.Role</td>
-                <td><span class="badge @(user.IsActive ? "badge-success" : "badge-danger")">@(user.IsActive ? "Active" : "Inactive")</span></td>
-                <td>
-                    <form asp-action="ToggleActive" method="post" style="display:inline;">
-                        @Html.AntiForgeryToken()
-                        <input type="hidden" name="id" value="@user.Id" />
-                        <button type="submit" class="btn btn-sm btn-outline">@(user.IsActive ? "Deactivate" : "Activate")</button>
-                    </form>
-                    <form asp-action="ResetPassword" method="post" style="display:inline;margin-left:0.25rem;">
-                        @Html.AntiForgeryToken()
-                        <input type="hidden" name="id" value="@user.Id" />
-                        <input type="hidden" name="newPassword" value="ChangeMe@123" />
-                        <button type="submit" class="btn btn-sm btn-outline">Reset Password</button>
-                    </form>
-                </td>
-            </tr>
+            <div class="dash-empty">No users match these filters. <a class="dash-link" href="/Users">Show everyone</a></div>
         }
-        </tbody>
-    </table>
+        else
+        {
+            <div class="ux-table-wrap">
+                <table class="ux-table">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Role</th>
+                            <th class="ux-hide-sm">Department</th>
+                            <th class="ux-hide-sm">Employee ID</th>
+                            <th>Status</th>
+                            <th class="ux-actions-col"><span class="sr-only">Actions</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var user in Model)
+                    {
+                        var isSelf = string.Equals(user.Username, currentUsername, StringComparison.OrdinalIgnoreCase);
+                        var name = string.IsNullOrWhiteSpace(user.DisplayName) ? user.Username : user.DisplayName;
+                        <tr class="@(user.IsActive ? "" : "is-inactive")">
+                            <td>
+                                <div class="ux-user">
+                                    <span class="dash-avatar" aria-hidden="true">@DashText.Initials(name)</span>
+                                    <div>
+                                        <div class="ux-user-name">@name
+                                            @if (isSelf)
+                                            {
+                                                <span class="dash-tag">You</span>
+                                            }
+                                        </div>
+                                        <div class="ux-user-sub">@user.Username@(string.IsNullOrWhiteSpace(user.Email) || string.Equals(user.Email, user.Username, StringComparison.OrdinalIgnoreCase) ? "" : " · " + user.Email)</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td><span class="ux-role @RoleTone(user.Role)">@DashText.Humanize(user.Role)</span></td>
+                            <td class="ux-hide-sm">@(user.DepartmentId is int d && departmentNames.TryGetValue(d, out var dn) ? dn : "—")</td>
+                            <td class="ux-hide-sm">@(string.IsNullOrWhiteSpace(user.EmployeeId) ? "—" : user.EmployeeId)</td>
+                            <td>
+                                <span class="ux-status @(user.IsActive ? "is-on" : "is-off")">@(user.IsActive ? "Active" : "Deactivated")</span>
+                                @if (user.MustChangePassword)
+                                {
+                                    <span class="ux-hint" title="Must set a new password at next sign-in">Password change due</span>
+                                }
+                            </td>
+                            <td class="ux-actions-col">
+                                <div class="ux-actions">
+                                    <form asp-action="ToggleActive" method="post">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@user.Id" />
+                                        <button type="submit" class="ux-btn" disabled="@(isSelf && user.IsActive ? "disabled" : null)" title="@(isSelf && user.IsActive ? "You can't deactivate yourself" : null)">@(user.IsActive ? "Deactivate" : "Activate")</button>
+                                    </form>
+
+                                    <details class="ux-menu">
+                                        <summary class="ux-btn ux-btn-icon" aria-label="More actions for @name">
+                                            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+                                        </summary>
+                                        <div class="ux-menu-panel">
+                                            <form asp-action="ResetPassword" method="post" class="ux-menu-form">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="id" value="@user.Id" />
+                                                <label for="pw-@user.Id">New temporary password</label>
+                                                <input id="pw-@user.Id" type="text" name="newPassword" minlength="6" required autocomplete="off" placeholder="At least 6 characters" />
+                                                <button type="submit" class="ux-btn ux-btn-wide">Reset password</button>
+                                                <p>They'll be asked to change it when they next sign in.</p>
+                                            </form>
+                                            @if (canDelete && !isSelf)
+                                            {
+                                                <form asp-action="Delete" method="post" class="ux-menu-form ux-danger-zone" data-confirm="Delete @name? This permanently removes the account and cannot be undone.">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="id" value="@user.Id" />
+                                                    <button type="submit" class="ux-btn ux-btn-danger ux-btn-wide">@UiIcons.Svg("trash") Delete user</button>
+                                                </form>
+                                            }
+                                        </div>
+                                    </details>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+            <p class="ux-foot">Showing @Model.Count of @allUsers.Count user@(allUsers.Count == 1 ? "" : "s").</p>
+        }
+    </article>
 </div>
+
+<script>
+    (function () {
+        // Ask before deleting.
+        document.querySelectorAll('form[data-confirm]').forEach(function (form) {
+            form.addEventListener('submit', function (e) {
+                if (!window.confirm(form.dataset.confirm)) e.preventDefault();
+            });
+        });
+        // Only one "more" menu open at a time; close on outside click.
+        var menus = document.querySelectorAll('.ux-menu');
+        menus.forEach(function (menu) {
+            menu.addEventListener('toggle', function () {
+                if (menu.open) menus.forEach(function (m) { if (m !== menu) m.open = false; });
+            });
+        });
+        document.addEventListener('click', function (e) {
+            menus.forEach(function (m) { if (m.open && !m.contains(e.target)) m.open = false; });
+        });
+    })();
+</script>

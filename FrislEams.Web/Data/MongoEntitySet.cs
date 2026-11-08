@@ -69,7 +69,15 @@ public sealed class MongoEntitySet<T> where T : class
             return pending;
         }
 
-        return await collection.Find(BuildIdFilter(id)).FirstOrDefaultAsync(cancellationToken);
+        var loaded = await collection.Find(BuildIdFilter(id)).FirstOrDefaultAsync(cancellationToken);
+        if (loaded is not null)
+        {
+            // Track the loaded entity so changes made to it are written by SaveChangesAsync,
+            // the same way EF Core does. Without this, "find, change, save" silently did nothing.
+            pendingUpdates[id] = loaded;
+        }
+
+        return loaded;
     }
 
     public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
