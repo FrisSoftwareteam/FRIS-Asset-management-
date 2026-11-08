@@ -14,7 +14,7 @@ public class AuditApiController(AuditScanService auditScanService, RoleGuard rol
     {
         if (!roleGuard.HasAnyRole(this, RoleName.Admin, RoleName.Auditor))
         {
-            return Forbid();
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "Your role is not allowed to do this." });
         }
 
         if (!ModelState.IsValid)
@@ -22,7 +22,7 @@ public class AuditApiController(AuditScanService auditScanService, RoleGuard rol
             return ValidationProblem(ModelState);
         }
 
-        var username = HttpContext.Session.GetString("UserName") ?? "ExternalReader";
+        var username = roleGuard.GetCurrentUserName(HttpContext);
         var (success, message, scan) = await auditScanService.AddScanBatchAsync(
             id, scanNumber, vm.RfidCodes, "external_reader", username);
 
@@ -47,7 +47,7 @@ public class AuditApiController(AuditScanService auditScanService, RoleGuard rol
     {
         if (!roleGuard.HasAnyRole(this, RoleName.Admin, RoleName.Auditor, RoleName.Backoffice))
         {
-            return Forbid();
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "Your role is not allowed to do this." });
         }
 
         var period = await auditScanService.GetPeriodAsync(id);

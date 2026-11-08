@@ -94,6 +94,9 @@ builder.Services.AddSingleton<MongoWorkbookImportService>();
 builder.Services.AddScoped<MongoVendorService>();
 builder.Services.AddScoped<FamasImportService>();
 builder.Services.AddScoped<SampleDataCleanupService>();
+builder.Services.AddScoped<ApiTokenService>();
+// The mobile app calls the JSON API with a bearer token (no cookies), so any origin may call it.
+builder.Services.AddCors(options => options.AddPolicy("api", policy => policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
@@ -163,6 +166,7 @@ else
 
 app.UseStaticFiles();
 app.UseRouting();
+app.UseCors("api");
 app.UseCookiePolicy();
 app.UseSession();
 app.UseMiddleware<PortalAccessMiddleware>();

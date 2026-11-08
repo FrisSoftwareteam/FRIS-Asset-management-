@@ -1,0 +1,284 @@
+using System.Text.RegularExpressions;
+using FrislEams.Web.Data;
+using FrislEams.Web.Domain;
+using FrislEams.Web.Models;
+using FrislEams.Web.Services;
+using Microsoft.AspNetCore.Mvc;
+using MongoDB.Bson;
+using MongoDB.Driver;
+
+namespace FrislEams.Web.Controllers.Api;
+
+/// <summary>
+/// Endpoints for the FRISL Tracker mobile app. Sign in with POST /api/auth/login, then send
+/// "Authorization: Bearer &lt;token&gt;" on every other call.
+/// </summary>
+[ApiController]
+public class MobileApiController(
+    AppDbContext db,
+    ApiTokenService tokens,
+    StockVerificationService stockVerification,
+    AuditScanService auditScans,
+    RoleGuard roleGuard) : ControllerBase
+{
+    public sealed record LoginRequest(string Username, string Password, string? Device);
+    public sealed record ResolveRequest(List<string> Codes);
+    public sealed record StartVerificationRequest(int? DepartmentId, int? LocationId);
+    public sealed record ScanRequest(string RfidCode);
+    public sealed record ScanBatchRequest(List<string> RfidCodes);
+
+    // ------------------------------------------------------------------ auth
+
+    [HttpPost("/api/auth/login")]
+    public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken ct)
+    {
+        var user = await tokens.AuthenticateAsync(request.Username, request.Password, ct);
+        if (user is null) return Unauthorized(new { error = "Invalid username or password." });
+
+        var (token, expiresAt) = await tokens.IssueAsync(user, request.Device, ct);
+        return Ok(new { token, expiresAt, user = UserDto(user) });
+    }
+
+    [HttpPost("/api/auth/logout")]
+    public async Task<IActionResult> Logout(CancellationToken ct)
+    {
+        var bearer = ApiTokenService.ReadBearer(Request);
+        if (bearer is not null) await tokens.RevokeAsync(bearer, ct);
+        return Ok(new { signedOut = true });
+    }
+
+    [HttpGet("/api/auth/me")]
+    public IActionResult Me()
+        => HttpContext.Items[ApiTokenService.ItemKey] is UserAccount user
+            ? Ok(UserDto(user))
+            : Ok(new { username = HttpContext.Session.GetString("LoginUsername"), displayName = HttpContext.Session.GetString("UserName"), role = HttpContext.Session.GetString("UserRole") });
+
+    // ------------------------------------------------------------------ lookups
+
+    /// <summary>Departments, locations, categories and statuses, for pickers and filters.</summary>
+    [HttpGet("/api/lookups")]
+    public async Task<IActionResult> Lookups(CancellationToken ct)
+    {
+        var departments = await db.Departments.Collection.Find(FilterDefinition<Department>.Empty).SortBy(d => d.Name).ToListAsync(ct);
+        var locations = await db.Locations.Collection.Find(FilterDefinition<Location>.Empty).SortBy(l => l.Name).ToListAsync(ct);
+        var categories = await db.AssetCategories.Collection.Find(FilterDefinition<AssetCategory>.Empty).SortBy(c => c.Name).ToListAsync(ct);
+        return Ok(new
+        {
+            departments = departments.Select(d => new { d.Id, d.Name }),
+            locations = locations.Select(l => new { l.Id, l.Name }),
+            categories = categories.Select(c => new { c.Id, c.Name }),
+            statuses = Enum.GetValues<AssetStatus>().Select(s => new { value = s.ToString(), label = DashText.Humanize(s) })
+        });
+    }
+
+    // ------------------------------------------------------------------ assets
+
+    /// <summary>Find one asset by RFID code (EPC), tag code (with or without dashes) or serial number.</summary>
+    [HttpGet("/api/assets/lookup")]
+    public async Task<IActionResult> LookupAsset([FromQuery] string code, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(code)) return BadRequest(new { error = "Pass ?code=<RFID, tag code or serial>." });
+        var ctx = await LoadContextAsync(ct);
+        var asset = await FindAssetAsync(code.Trim(), ctx, ct);
+        return asset is null
+            ? NotFound(new { error = "No asset matches that code.", code })
+            : Ok(AssetDto(asset, ctx));
+    }
+
+    /// <summary>Resolve many scanned codes at once, for example after a bulk RFID read.</summary>
+    [HttpPost("/api/assets/resolve")]
+    public async Task<IActionResult> Resolve([FromBody] ResolveRequest request, CancellationToken ct)
+    {
+        var codes = (request.Codes ?? []).Select(c => c?.Trim() ?? "").Where(c => c.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).Take(1000).ToList();
+        var ctx = await LoadContextAsync(ct);
+        var results = new List<object>();
+        var found = 0;
+        foreach (var code in codes)
+        {
+            var asset = await FindAssetAsync(code, ctx, ct);
+            if (asset is not null) found++;
+            results.Add(new { code, found = asset is not null, asset = asset is null ? null : AssetDto(asset, ctx) });
+        }
+
+        return Ok(new { total = codes.Count, found, results });
+    }
+
+    /// <summary>Search and page through the register.</summary>
+    [HttpGet("/api/assets/search")]
+    public async Task<IActionResult> Search([FromQuery] string? q, [FromQuery] int? departmentId, [FromQuery] int? locationId,
+        [FromQuery] string? status, [FromQuery] int page = 1, [FromQuery] int pageSize = 50, CancellationToken ct = default)
+    {
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 200);
+        var f = Builders<Asset>.Filter;
+        var filter = f.Empty;
+        if (departmentId is int d) filter &= f.Eq(a => a.CurrentDepartmentId, d);
+        if (locationId is int l) filter &= f.Eq(a => a.CurrentLocationId, l);
+        if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<AssetStatus>(status, true, out var st)) filter &= f.Eq(a => a.CurrentStatus, st);
+        if (!string.IsNullOrWhiteSpace(q))
+        {
+            var rx = new BsonRegularExpression(Regex.Escape(q.Trim()), "i");
+            filter &= f.Or(f.Regex(a => a.TagCode, rx), f.Regex(a => a.AssetName, rx), f.Regex(a => a.SerialNumber, rx), f.Regex(a => a.Brand, rx));
+        }
+
+        var total = await db.Assets.Collection.CountDocumentsAsync(filter, cancellationToken: ct);
+        var assets = await db.Assets.Collection.Find(filter).SortBy(a => a.TagCode).Skip((page - 1) * pageSize).Limit(pageSize).ToListAsync(ct);
+        var ctx = await LoadContextAsync(ct);
+        return Ok(new { total, page, pageSize, items = assets.Select(a => AssetDto(a, ctx)) });
+    }
+
+    // ------------------------------------------------------------------ stock verification
+
+    [HttpPost("/api/stock-verification/sessions")]
+    public async Task<IActionResult> StartVerification([FromBody] StartVerificationRequest request)
+    {
+        if (!roleGuard.HasAnyRole(this, RoleName.Admin, RoleName.Backoffice, RoleName.Auditor)) return Denied();
+        var session = await stockVerification.StartSessionAsync(request.DepartmentId, request.LocationId, roleGuard.GetCurrentUserName(HttpContext));
+        return Ok(SessionDto(session));
+    }
+
+    [HttpGet("/api/stock-verification/sessions")]
+    public async Task<IActionResult> ListVerifications(CancellationToken ct)
+    {
+        if (!roleGuard.HasAnyRole(this, RoleName.Admin, RoleName.Backoffice, RoleName.Auditor)) return Denied();
+        var sessions = await db.StockVerificationSessions.Collection.Find(FilterDefinition<StockVerificationSession>.Empty)
+            .SortByDescending(s => s.StartedAt).Limit(30).ToListAsync(ct);
+        return Ok(sessions.Select(SessionDto));
+    }
+
+    /// <summary>Record one scanned tag in a verification session. Returns Found, Unexpected, Duplicate or Unknown.</summary>
+    [HttpPost("/api/stock-verification/sessions/{id:int}/scans")]
+    public async Task<IActionResult> Scan(int id, [FromBody] ScanRequest request)
+    {
+        if (!roleGuard.HasAnyRole(this, RoleName.Admin, RoleName.Backoffice, RoleName.Auditor)) return Denied();
+        if (string.IsNullOrWhiteSpace(request.RfidCode)) return BadRequest(new { error = "rfidCode is required." });
+        var (ok, message, scan) = await stockVerification.ProcessScanAsync(id, request.RfidCode.Trim(), roleGuard.GetCurrentUserName(HttpContext));
+        if (!ok) return BadRequest(new { error = message });
+        return Ok(new { message, scan!.Id, scan.RfidCode, scan.AssetId, result = scan.ResultType, scan.ScannedAt });
+    }
+
+    /// <summary>Record many scanned tags in one call.</summary>
+    [HttpPost("/api/stock-verification/sessions/{id:int}/scans/batch")]
+    public async Task<IActionResult> ScanBatch(int id, [FromBody] ScanBatchRequest request)
+    {
+        if (!roleGuard.HasAnyRole(this, RoleName.Admin, RoleName.Backoffice, RoleName.Auditor)) return Denied();
+        var user = roleGuard.GetCurrentUserName(HttpContext);
+        var results = new List<object>();
+        foreach (var code in (request.RfidCodes ?? []).Select(c => c?.Trim() ?? "").Where(c => c.Length > 0).Take(2000))
+        {
+            var (ok, message, scan) = await stockVerification.ProcessScanAsync(id, code, user);
+            results.Add(new { rfidCode = code, ok, result = scan?.ResultType, assetId = scan?.AssetId, message });
+            if (!ok && message.Contains("not found", StringComparison.OrdinalIgnoreCase)) break;
+        }
+
+        var session = await db.StockVerificationSessions.FindAsync(id);
+        return Ok(new { session = session is null ? null : SessionDto(session), results });
+    }
+
+    [HttpPost("/api/stock-verification/sessions/{id:int}/complete")]
+    public async Task<IActionResult> CompleteVerification(int id)
+    {
+        if (!roleGuard.HasAnyRole(this, RoleName.Admin, RoleName.Backoffice, RoleName.Auditor)) return Denied();
+        var session = await stockVerification.CompleteSessionAsync(id, roleGuard.GetCurrentUserName(HttpContext));
+        return Ok(SessionDto(session));
+    }
+
+    // ------------------------------------------------------------------ audit scan periods
+
+    /// <summary>Audit scan periods the app can upload scans to (POST /api/audit/periods/{id}/scans/{n}).</summary>
+    [HttpGet("/api/audit/periods")]
+    public async Task<IActionResult> AuditPeriods()
+    {
+        if (!roleGuard.HasAnyRole(this, RoleName.Admin, RoleName.Auditor, RoleName.Backoffice)) return Denied();
+        var periods = await auditScans.GetPeriodsAsync(30);
+        return Ok(periods.Select(p => new { p.Id, p.Name, p.Status, p.StartDate, p.EndDate, p.Auditor, p.DistinctScannedCount, p.DiscrepancyCount }));
+    }
+
+    // ------------------------------------------------------------------ helpers
+
+    private sealed record LookupContext(
+        Dictionary<int, string> Departments, Dictionary<int, string> Locations, Dictionary<int, string> Categories,
+        Dictionary<int, string> Staff, Dictionary<int, string> RfidByAsset);
+
+    private async Task<LookupContext> LoadContextAsync(CancellationToken ct)
+    {
+        var departments = (await db.Departments.Collection.Find(FilterDefinition<Department>.Empty).ToListAsync(ct)).ToDictionary(x => x.Id, x => x.Name);
+        var locations = (await db.Locations.Collection.Find(FilterDefinition<Location>.Empty).ToListAsync(ct)).ToDictionary(x => x.Id, x => x.Name);
+        var categories = (await db.AssetCategories.Collection.Find(FilterDefinition<AssetCategory>.Empty).ToListAsync(ct)).ToDictionary(x => x.Id, x => x.Name);
+        var staff = (await db.Staff.Collection.Find(FilterDefinition<Staff>.Empty).ToListAsync(ct)).ToDictionary(x => x.Id, x => x.FullName);
+        var rfid = (await db.RfidTags.Collection.Find(t => t.AssetId != null).ToListAsync(ct))
+            .GroupBy(t => t.AssetId!.Value).ToDictionary(g => g.Key, g => g.First().RfidCode);
+        return new LookupContext(departments, locations, categories, staff, rfid);
+    }
+
+    private async Task<Asset?> FindAssetAsync(string code, LookupContext ctx, CancellationToken ct)
+    {
+        var exact = new BsonRegularExpression($"^{Regex.Escape(code)}$", "i");
+
+        // 1. RFID code (EPC) on a tag.
+        var tag = await db.RfidTags.Collection.Find(Builders<RfidTag>.Filter.Regex(t => t.RfidCode, exact)).FirstOrDefaultAsync(ct);
+        if (tag?.AssetId is int assetId)
+        {
+            var byTag = await db.Assets.Collection.Find(a => a.Id == assetId).FirstOrDefaultAsync(ct);
+            if (byTag is not null) return byTag;
+        }
+
+        // 2. Tag code, serial number or tag number.
+        var f = Builders<Asset>.Filter;
+        var asset = await db.Assets.Collection.Find(f.Or(f.Regex(a => a.TagCode, exact), f.Regex(a => a.SerialNumber, exact), f.Regex(a => a.TagNumber, exact))).FirstOrDefaultAsync(ct);
+        if (asset is not null) return asset;
+
+        // 3. FAMAS EPCs are the tag code without dashes ("033004000001" is "033-004-000001").
+        var digits = Regex.Replace(code, "[^0-9]", "");
+        if (digits.Length == 12)
+        {
+            var dashed = $"{digits[..3]}-{digits[3..6]}-{digits[6..]}";
+            asset = await db.Assets.Collection.Find(f.Eq(a => a.TagCode, dashed)).FirstOrDefaultAsync(ct);
+        }
+
+        return asset;
+    }
+
+    private static object AssetDto(Asset a, LookupContext ctx) => new
+    {
+        a.Id,
+        a.TagCode,
+        rfidCode = ctx.RfidByAsset.GetValueOrDefault(a.Id),
+        a.AssetName,
+        a.Description,
+        category = ctx.Categories.GetValueOrDefault(a.AssetCategoryId),
+        status = a.CurrentStatus.ToString(),
+        statusLabel = DashText.Humanize(a.CurrentStatus),
+        condition = a.CurrentCondition,
+        departmentId = a.CurrentDepartmentId,
+        department = a.CurrentDepartmentId is int d ? ctx.Departments.GetValueOrDefault(d) : null,
+        locationId = a.CurrentLocationId,
+        location = a.CurrentLocationId is int l ? ctx.Locations.GetValueOrDefault(l) : null,
+        custodianId = a.CurrentCustodianId,
+        custodian = a.CurrentCustodianId is int s ? ctx.Staff.GetValueOrDefault(s) : null,
+        a.Brand,
+        a.ModelNumber,
+        a.SerialNumber,
+        a.PurchaseDate,
+        a.PurchaseCost,
+        a.WarrantyExpiryDate,
+        a.Notes
+    };
+
+    private static object SessionDto(StockVerificationSession s) => new
+    {
+        s.Id, s.Status, s.DepartmentId, s.LocationId, s.InitiatedBy, s.FoundCount, s.MissingCount, s.UnexpectedCount, s.DuplicateCount, s.StartedAt, s.CompletedAt
+    };
+
+    private static object UserDto(UserAccount u) => new
+    {
+        u.Id,
+        u.Username,
+        displayName = string.IsNullOrWhiteSpace(u.DisplayName) ? u.Username : u.DisplayName,
+        u.Role,
+        portal = PortalService.GetPortalForRole(u.Role),
+        u.MustChangePassword
+    };
+
+    private ObjectResult Denied() => StatusCode(StatusCodes.Status403Forbidden, new { error = "Your role is not allowed to do this." });
+}
