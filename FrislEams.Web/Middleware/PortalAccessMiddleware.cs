@@ -4,13 +4,45 @@ namespace FrislEams.Web.Middleware;
 
 public sealed class PortalAccessMiddleware(RequestDelegate next)
 {
-    public async Task InvokeAsync(HttpContext context, RoleGuard roleGuard)
+    public async Task InvokeAsync(HttpContext context, RoleGuard roleGuard, ApiTokenService apiTokens)
     {
         var path = context.Request.Path.Value ?? "/";
         if (IsStaticAssetPath(path))
         {
             await next(context);
             return;
+        }
+
+        // The JSON API (used by the mobile app) signs in with a bearer token instead of the web
+        // session, and answers 401 instead of redirecting to the sign-in page.
+        if (path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase))
+        {
+            if (path.StartsWith("/api/auth/login", StringComparison.OrdinalIgnoreCase))
+            {
+                await next(context);
+                return;
+            }
+
+            var bearer = ApiTokenService.ReadBearer(context.Request);
+            if (bearer is not null)
+            {
+                var apiUser = await apiTokens.ValidateAsync(bearer, context.RequestAborted);
+                if (apiUser is null)
+                {
+                    await WriteJsonErrorAsync(context, StatusCodes.Status401Unauthorized, "Your sign-in has expired. Please sign in again.");
+                    return;
+                }
+
+                context.Items[ApiTokenService.ItemKey] = apiUser;
+                await next(context);
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(context.Session.GetString("UserName")))
+            {
+                await WriteJsonErrorAsync(context, StatusCodes.Status401Unauthorized, "Sign in first: POST /api/auth/login, then send the token as 'Authorization: Bearer <token>'.");
+                return;
+            }
         }
 
         var role = roleGuard.GetCurrentRole(context);
@@ -40,6 +72,12 @@ public sealed class PortalAccessMiddleware(RequestDelegate next)
         }
 
         await next(context);
+    }
+
+    private static Task WriteJsonErrorAsync(HttpContext context, int status, string message)
+    {
+        context.Response.StatusCode = status;
+        return context.Response.WriteAsJsonAsync(new { error = message });
     }
 
     private static bool IsStaticAssetPath(string path)

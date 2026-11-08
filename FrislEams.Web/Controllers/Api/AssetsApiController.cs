@@ -39,9 +39,9 @@ public class AssetsApiController(
     [HttpPost("register")]
     public async Task<IActionResult> RegisterAsset([FromBody] AssetRegistrationVm vm)
     {
-        if (!roleGuard.HasAnyRole(this, RoleName.Backoffice, RoleName.Auditor))
+        if (!roleGuard.HasAnyRole(this, RoleName.Admin, RoleName.Backoffice, RoleName.Auditor))
         {
-            return Forbid();
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "Your role is not allowed to do this." });
         }
 
         if (!ModelState.IsValid)
@@ -88,9 +88,9 @@ public class AssetsApiController(
     [HttpPost("{id:int}/status")]
     public async Task<IActionResult> ChangeStatus(int id, [FromBody] StatusChangeVm vm)
     {
-        if (!roleGuard.HasAnyRole(this, RoleName.Backoffice))
+        if (!roleGuard.HasAnyRole(this, RoleName.Admin, RoleName.Backoffice))
         {
-            return Forbid();
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "Your role is not allowed to do this." });
         }
 
         var asset = await db.Assets.FindAsync(id);

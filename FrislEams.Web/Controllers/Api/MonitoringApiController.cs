@@ -19,7 +19,7 @@ public class MonitoringApiController(
     {
         if (!roleGuard.HasAnyRole(this, RoleName.Admin, RoleName.Auditor))
         {
-            return Forbid();
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "Your role is not allowed to do this." });
         }
 
         if (!ModelState.IsValid)

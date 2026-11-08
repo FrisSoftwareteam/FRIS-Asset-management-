@@ -16,7 +16,7 @@ public class IntegrationApiController(IIntegrationQueue queue, AppDbContext db, 
     {
         if (!roleGuard.HasAnyRole(this, RoleName.Admin, RoleName.Supplier))
         {
-            return Forbid();
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "Your role is not allowed to do this." });
         }
 
         if (!ModelState.IsValid)
@@ -34,7 +34,7 @@ public class IntegrationApiController(IIntegrationQueue queue, AppDbContext db, 
     {
         if (!roleGuard.HasAnyRole(this, RoleName.Admin, RoleName.Auditor))
         {
-            return Forbid();
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "Your role is not allowed to do this." });
         }
 
         if (!ModelState.IsValid)
