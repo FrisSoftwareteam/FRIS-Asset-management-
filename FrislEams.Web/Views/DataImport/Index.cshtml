@@ -1,0 +1,148 @@
+@{
+    var result = ViewBag.Result as FamasImportResult;
+    var runs = ViewBag.Runs as List<MongoDB.Bson.BsonDocument> ?? new();
+}
+
+<div class="dash">
+    <section class="dash-hero">
+        <div>
+            <p class="dash-eyebrow">Administration</p>
+            <h1 class="dash-title">Data import</h1>
+            <p class="dash-sub">Bring the legacy FAMAS asset database into FRISL EAMS.</p>
+        </div>
+    </section>
+
+    @if (result is not null)
+    {
+        <article class="dash-card dash-import-result @(result.Success ? "is-ok" : "is-error")">
+            <header class="dash-card-head">
+                <div>
+                    <h2>@(result.Success ? "Import finished" : "Import did not complete")</h2>
+                    <p>Took @result.Duration.TotalSeconds.ToString("0.0") seconds</p>
+                </div>
+            </header>
+
+            @if (result.Mapped.Any())
+            {
+                <table class="dash-table">
+                    <thead><tr><th>Added to the app</th><th class="num">New</th><th class="num">Already there / updated</th></tr></thead>
+                    <tbody>
+                    @foreach (var (name, counts) in result.Mapped)
+                    {
+                        <tr><td>@name</td><td class="num">@counts.Added.ToString("N0")</td><td class="num">@counts.Updated.ToString("N0")</td></tr>
+                    }
+                    </tbody>
+                </table>
+            }
+
+            @foreach (var message in result.Messages)
+            {
+                <p class="dash-note">@message</p>
+            }
+            @foreach (var warning in result.Warnings)
+            {
+                <p class="dash-note dash-note-warn">@warning</p>
+            }
+
+            @if (result.RawTables.Any())
+            {
+                <details class="dash-details">
+                    <summary>Raw tables copied (@result.RawTables.Count)</summary>
+                    <ul class="dash-raw-list">
+                        @foreach (var (table, count) in result.RawTables.OrderBy(t => t.Key))
+                        {
+                            <li><code>@table</code><span>@count.ToString("N0") rows</span></li>
+                        }
+                    </ul>
+                </details>
+            }
+        </article>
+    }
+
+    <section class="dash-grid dash-grid-wide">
+        <article class="dash-card">
+            <header class="dash-card-head">
+                <div>
+                    <h2>Import FAMAS export</h2>
+                    <p>Upload <code>_all_tables.json</code> on its own, or select all the <code>dbo_*.json</code> files.</p>
+                </div>
+            </header>
+
+            <form method="post" action="/DataImport/Famas" enctype="multipart/form-data" class="dash-upload" id="famasForm">
+                @Html.AntiForgeryToken()
+                <label class="dash-drop" for="famasFiles">
+                    @UiIcons.Svg("upload")
+                    <span class="dash-drop-title">Choose JSON files</span>
+                    <span class="dash-drop-sub" id="famasPicked">No files selected</span>
+                    <input type="file" id="famasFiles" name="files" accept=".json,application/json" multiple required />
+                </label>
+                <button type="submit" class="dash-btn dash-btn-primary" id="famasSubmit">@UiIcons.Svg("upload") Import into database</button>
+                <p class="dash-note">The import can take a minute or two. Keep this page open until it finishes.</p>
+            </form>
+        </article>
+
+        <article class="dash-card">
+            <header class="dash-card-head">
+                <div>
+                    <h2>What gets imported</h2>
+                    <p>Safe to run again: existing records are updated, not duplicated</p>
+                </div>
+            </header>
+            <ul class="dash-list dash-plain">
+                <li>Locations, departments and asset categories</li>
+                <li>FAMAS users as <strong>staff records</strong> (no logins, no passwords)</li>
+                <li>Every asset in the tag file, with status, department, location, brand, serial number and custodian</li>
+                <li>RFID tags linked to their assets</li>
+                <li>Relocation history as completed transfers</li>
+                <li>The FAMAS operation log as activity log entries</li>
+                <li>A copy of every table, as-is, in <code>famas_*</code> collections</li>
+            </ul>
+        </article>
+    </section>
+
+    @if (runs.Any())
+    {
+        <article class="dash-card">
+            <header class="dash-card-head">
+                <div>
+                    <h2>Previous imports</h2>
+                    <p>Most recent first</p>
+                </div>
+            </header>
+            <table class="dash-table">
+                <thead><tr><th>When</th><th>By</th><th class="num">Tables</th><th class="num">Rows</th></tr></thead>
+                <tbody>
+                @foreach (var run in runs)
+                {
+                    var when = run.GetValue("RunAt", MongoDB.Bson.BsonNull.Value);
+                    <tr>
+                        <td>@(when.IsValidDateTime ? when.ToUniversalTime().ToString("d MMM yyyy HH:mm") + " UTC" : "—")</td>
+                        <td>@run.GetValue("Operator", "").ToString()</td>
+                        <td class="num">@run.GetValue("Tables", 0).ToString()</td>
+                        <td class="num">@run.GetValue("Rows", 0).ToString()</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </article>
+    }
+</div>
+
+<script>
+    (function () {
+        var input = document.getElementById('famasFiles');
+        var picked = document.getElementById('famasPicked');
+        var form = document.getElementById('famasForm');
+        var submit = document.getElementById('famasSubmit');
+        input.addEventListener('change', function () {
+            var n = input.files.length;
+            picked.textContent = n === 0 ? 'No files selected'
+                : n === 1 ? input.files[0].name
+                : n + ' files selected';
+        });
+        form.addEventListener('submit', function () {
+            submit.disabled = true;
+            submit.lastChild.textContent = ' Importing… please wait';
+        });
+    })();
+</script>
