@@ -1,27 +1,29 @@
 @{
-    var portalHome = FrislEams.Web.Services.PortalService.GetHomePath(Context.Session.GetString("UserRole"));
-    var currentPath = Context.Request.Path.Value ?? "/";
-    bool IsActive(string path) => currentPath.StartsWith(path, StringComparison.OrdinalIgnoreCase);
+    var portalHome = PortalService.GetHomePath(Context.Session.GetString("UserRole"));
+    var nav = new PortalNavModel("Auditor", "Auditor Portal", "Audit & compliance · read-only", "search", new[]
+    {
+        new NavGroup("Overview", new[]
+        {
+            new NavLink("Dashboard", portalHome, "/Portal/Auditor", "dashboard"),
+            new NavLink("Notifications", "/Notifications", "/Notifications", "bell"),
+        }),
+        new NavGroup("Audit", new[]
+        {
+            new NavLink("Reconciliation", "/Reconciliation", "/Reconciliation", "scale"),
+            new NavLink("Exceptions", "/Exceptions", "/Exceptions", "alert"),
+            new NavLink("Audit trails", "/AuditTrails", "/AuditTrails", "log"),
+            new NavLink("Audit scan periods", "/AuditScan", "/AuditScan", "calendar"),
+        }),
+        new NavGroup("Verification", new[]
+        {
+            new NavLink("Scan RFID", "/RfidReader", "/RfidReader", "wifi"),
+            new NavLink("Stock verification", "/StockVerification", "/StockVerification", "check"),
+            new NavLink("RFID tags", "/RfidTags", "/RfidTags", "tag"),
+        }),
+        new NavGroup("Reports", new[]
+        {
+            new NavLink("Asset register & reports", "/Reports", "/Reports", "chart"),
+        }),
+    });
 }
-<aside class="portal-sidebar portal-sidebar-auditor" id="portalSidebar">
-    <div class="portal-sidebar-brand">
-        <div class="portal-sidebar-icon">🔍</div>
-        <div>
-            <div class="portal-sidebar-title">AUDITOR PORTAL</div>
-            <div class="portal-sidebar-subtitle">Audit, Compliance &amp; Assurance</div>
-        </div>
-    </div>
-    <nav class="portal-sidebar-nav">
-        <a href="@portalHome" class="portal-nav-item @(IsActive("/Portal/Auditor") ? "active" : "")"><span class="nav-ico">📊</span> Dashboard</a>
-        <a asp-controller="AuditTrails" asp-action="Index" class="portal-nav-item @(IsActive("/AuditTrails") ? "active" : "")"><span class="nav-ico">📜</span> Audit Trails</a>
-        <a asp-controller="Reports" asp-action="Index" class="portal-nav-item @(IsActive("/Reports") ? "active" : "")"><span class="nav-ico">📋</span> Asset Register</a>
-        <a asp-controller="Reconciliation" asp-action="Index" class="portal-nav-item @(IsActive("/Reconciliation") ? "active" : "")"><span class="nav-ico">✅</span> Reconciliation</a>
-        <a asp-controller="Reports" asp-action="Index" class="portal-nav-item @(IsActive("/Reports") ? "active" : "")"><span class="nav-ico">📈</span> Reports</a>
-        <a asp-controller="Exceptions" asp-action="Index" class="portal-nav-item @(IsActive("/Exceptions") ? "active" : "")"><span class="nav-ico">⚠️</span> Exceptions</a>
-        <a asp-controller="RfidReader" asp-action="Index" class="portal-nav-item @(IsActive("/RfidReader") ? "active" : "")"><span class="nav-ico">📡</span> Scan RFID</a>
-        <a asp-controller="RfidTags" asp-action="Index" class="portal-nav-item @(IsActive("/RfidTags") ? "active" : "")"><span class="nav-ico">🏷️</span> RFID Tags</a>
-        <a asp-controller="StockVerification" asp-action="Index" class="portal-nav-item @(IsActive("/StockVerification") ? "active" : "")"><span class="nav-ico">✅</span> Stock Verification</a>
-        <a asp-controller="AuditScan" asp-action="Index" class="portal-nav-item @(IsActive("/AuditScan") ? "active" : "")"><span class="nav-ico">📅</span> Audit Scan Periods</a>
-    </nav>
-    @await Html.PartialAsync("_Sidebars/_PortalSidebarFooter")
-</aside>
+<partial name="_Sidebars/_PortalNav" model="nav" />

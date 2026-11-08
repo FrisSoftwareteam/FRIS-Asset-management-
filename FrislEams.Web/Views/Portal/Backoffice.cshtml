@@ -1,69 +1,282 @@
 @model FrislEams.Web.Services.AdminDashboardMetrics
 @{
-    ViewData["Title"] = "Portal Overview";
-    var m = Model;
-    var manual = ViewBag.ManualMetrics as FrislEams.Web.Services.BackofficeManualMetrics;
-    var underMaintenance = m.UnderRepair + m.Damaged;
+    ViewData["Title"] = "Backoffice Dashboard";
+    var m = Model ?? new FrislEams.Web.Services.AdminDashboardMetrics();
+    var manual = ViewBag.ManualMetrics as FrislEams.Web.Services.BackofficeManualMetrics ?? new FrislEams.Web.Services.BackofficeManualMetrics();
     var movements = ViewBag.RecentMovements as List<FrislEams.Web.Services.MovementRecord> ?? new();
-    var categories = m.AssetsByCategory.OrderByDescending(x => x.Value).Take(5).ToList();
-    var totalCat = categories.Sum(x => x.Value);
-    var colors = new[] { "#1d3461", "#2a4a8a", "#c4970a", "#198754", "#6c757d" };
-    var gradientParts = new List<string>();
-    double acc = 0;
-    for (var i = 0; i < categories.Count; i++)
+    var displayName = Context.Session.GetString("UserName") ?? "there";
+
+    var totalAssets = manual.TotalAssets > 0 ? manual.TotalAssets : m.TotalAssets;
+    var assignedPct = totalAssets == 0 ? 0 : (int)Math.Round(manual.AssetsAssigned * 100.0 / totalAssets);
+    var taggedPct = totalAssets == 0 ? 0 : (int)Math.Round((totalAssets - manual.AssetsAwaitingRfid) * 100.0 / totalAssets);
+
+    var attention = new (string Label, int Count, string Href, string Tone)[]
     {
-        var pct = totalCat > 0 ? categories[i].Value * 100.0 / totalCat : 0;
-        gradientParts.Add($"{colors[i % colors.Length]} {acc:F1}% {acc + pct:F1}%");
-        acc += pct;
-    }
-    var donutStyle = categories.Any() ? $"background: conic-gradient({string.Join(", ", gradientParts)});" : "background:#e8edf5;";
+        ("Assets without an RFID tag", manual.AssetsAwaitingRfid, "/RfidTags", "warn"),
+        ("Assets without a custodian", manual.AssetsWithoutCustodian, "/Assignments/Create", "warn"),
+        ("Transfers in progress", manual.PendingTransfers, "/Transfers", "info"),
+        ("Assignments awaiting receipt", m.PendingAssignmentConfirmations, "/Assignments", "info"),
+        ("Repair requests awaiting review", m.PendingRepairRequests, "/Workflow/Repairs", "warn"),
+        ("Asset requests pending", m.PendingAssetRequests, "/Workflow/Requests", "warn"),
+        ("Loan requests pending", m.PendingLoanRequests, "/Workflow/Loans", "warn"),
+        ("RFID exit alerts", m.ExitAlerts, "/Exceptions", "danger"),
+        ("Warranties expiring in 90 days", m.WarrantyExpiringSoon, "/Assets", "info"),
+    };
+    var openItems = attention.Where(a => a.Count > 0).ToList();
+    var openTotal = openItems.Sum(a => a.Count);
+
+    var byStatus = m.AssetsByStatus;
+    int Sum(params FrislEams.Web.Domain.AssetStatus[] s) => s.Sum(x => byStatus.GetValueOrDefault(x.ToString()));
+    var statusBuckets = new (string Label, int Count, string Css)[]
+    {
+        ("In use", Sum(FrislEams.Web.Domain.AssetStatus.ActiveAssigned, FrislEams.Web.Domain.AssetStatus.AssignedPendingConfirmation), "s-use"),
+        ("Available", Sum(FrislEams.Web.Domain.AssetStatus.RegisteredUnassigned, FrislEams.Web.Domain.AssetStatus.UnregisteredUnassigned, FrislEams.Web.Domain.AssetStatus.RecalledToStorage), "s-free"),
+        ("On loan", Sum(FrislEams.Web.Domain.AssetStatus.LoanedOutInternal, FrislEams.Web.Domain.AssetStatus.LoanedOutExternal), "s-loan"),
+        ("Repair / damaged", Sum(FrislEams.Web.Domain.AssetStatus.UnderRepair, FrislEams.Web.Domain.AssetStatus.Damaged, FrislEams.Web.Domain.AssetStatus.PendingReplacement), "s-repair"),
+        ("Procurement", Sum(FrislEams.Web.Domain.AssetStatus.UnderProcurement), "s-proc"),
+        ("Retired", Sum(FrislEams.Web.Domain.AssetStatus.Retired, FrislEams.Web.Domain.AssetStatus.Sold, FrislEams.Web.Domain.AssetStatus.Discarded), "s-retired"),
+    };
+    var statusTotal = Math.Max(1, statusBuckets.Sum(b => b.Count));
+
+    var categories = m.AssetsByCategory.OrderByDescending(x => x.Value).Take(6).ToList();
+    var maxCat = Math.Max(1, categories.Select(c => c.Value).DefaultIfEmpty(0).Max());
+    var departments = m.AssetsByDepartment.OrderByDescending(x => x.Value).Take(6).ToList();
+    var maxDept = Math.Max(1, departments.Select(d => d.Value).DefaultIfEmpty(0).Max());
+    var missingFinance = m.AssetsMissingFinancialDetails ?? new();
 }
 
-<div class="portal-dash-header">
-    <span class="portal-overview-badge">Portal Overview</span>
-    <h1>Dashboard</h1>
-</div>
-
-<div class="portal-stat-row">
-    <div class="portal-stat-card"><div class="label">Total Assets</div><div class="value">@((manual?.TotalAssets ?? m.TotalAssets).ToString("N0"))</div></div>
-    <div class="portal-stat-card"><div class="label">Assets Assigned</div><div class="value">@((manual?.AssetsAssigned ?? m.ActiveAssigned).ToString("N0"))</div></div>
-    <div class="portal-stat-card"><div class="label">Awaiting RFID</div><div class="value">@((manual?.AssetsAwaitingRfid ?? 0).ToString("N0"))</div></div>
-    <div class="portal-stat-card"><div class="label">Without Custodian</div><div class="value">@((manual?.AssetsWithoutCustodian ?? 0).ToString("N0"))</div></div>
-    <div class="portal-stat-card"><div class="label">Pending Transfers</div><div class="value">@((manual?.PendingTransfers ?? 0).ToString("N0"))</div></div>
-</div>
-
-<div class="portal-dash-grid">
-    <div class="portal-panel">
-        <h3>Assets by Category</h3>
-        <div class="donut-wrap">
-            <div class="donut-chart" style="@donutStyle"></div>
-            <div class="donut-legend">
-                @for (var i = 0; i < categories.Count; i++)
+<div class="dash">
+    <section class="dash-hero">
+        <div>
+            <p class="dash-eyebrow">Backoffice Portal · @DateTime.Now.ToString("dddd d MMMM")</p>
+            <h1 class="dash-title">@DashText.Greeting(), @displayName</h1>
+            <p class="dash-sub">
+                @if (openTotal > 0)
                 {
-                    var pct = totalCat > 0 ? (int)(categories[i].Value * 100.0 / totalCat) : 0;
-                    <div class="donut-legend-item">
-                        <span class="donut-swatch" style="background:@colors[i % colors.Length]"></span>
-                        <span>@categories[i].Key (@pct%)</span>
-                    </div>
+                    <span><strong>@openTotal</strong> item@(openTotal == 1 ? "" : "s") across the register need action.</span>
                 }
-            </div>
+                else
+                {
+                    <span>The register is up to date. Nothing needs action.</span>
+                }
+            </p>
         </div>
-    </div>
-    <div class="portal-panel">
-        <h3>Recent Movements</h3>
-        <ul class="portal-feed">
+        <div class="dash-actions">
+            <a class="dash-btn dash-btn-primary" href="/Assets/Register">@UiIcons.Svg("plus") Register asset</a>
+            <a class="dash-btn" href="/Assignments/Create">@UiIcons.Svg("assign") Assign asset</a>
+            <a class="dash-btn" href="/RfidReader">@UiIcons.Svg("wifi") Scan RFID</a>
+            <a class="dash-btn" href="/StockVerification">@UiIcons.Svg("check") Stock check</a>
+        </div>
+    </section>
+
+    <section class="dash-kpis" aria-label="Key figures">
+        <a class="dash-kpi" href="/Assets">
+            <span class="dash-kpi-icon">@UiIcons.Svg("box")</span>
+            <span class="dash-kpi-label">Assets in register</span>
+            <span class="dash-kpi-value">@totalAssets.ToString("N0")</span>
+            <span class="dash-kpi-meta">@(m.TotalValue > 0 ? $"₦{m.TotalValue:N0}m recorded value" : "No purchase costs recorded yet")</span>
+        </a>
+        <a class="dash-kpi" href="/Assignments">
+            <span class="dash-kpi-icon">@UiIcons.Svg("assign")</span>
+            <span class="dash-kpi-label">Assigned</span>
+            <span class="dash-kpi-value">@manual.AssetsAssigned.ToString("N0")</span>
+            <span class="dash-meter" aria-hidden="true"><span style="width:@assignedPct%"></span></span>
+            <span class="dash-kpi-meta">@assignedPct% of the register</span>
+        </a>
+        <a class="dash-kpi @(manual.AssetsAwaitingRfid > 0 ? "is-alert" : "")" href="/RfidTags">
+            <span class="dash-kpi-icon">@UiIcons.Svg("tag")</span>
+            <span class="dash-kpi-label">Awaiting RFID tag</span>
+            <span class="dash-kpi-value">@manual.AssetsAwaitingRfid.ToString("N0")</span>
+            <span class="dash-meter" aria-hidden="true"><span style="width:@taggedPct%"></span></span>
+            <span class="dash-kpi-meta">@taggedPct% of assets tagged</span>
+        </a>
+        <a class="dash-kpi" href="/Transfers">
+            <span class="dash-kpi-icon">@UiIcons.Svg("transfer")</span>
+            <span class="dash-kpi-label">Transfers in progress</span>
+            <span class="dash-kpi-value">@manual.PendingTransfers.ToString("N0")</span>
+            <span class="dash-kpi-meta">@manual.AssetsWithoutCustodian without a custodian</span>
+        </a>
+    </section>
+
+    <section class="dash-grid dash-grid-wide">
+        <article class="dash-card">
+            <header class="dash-card-head">
+                <div>
+                    <h2>Assets by status</h2>
+                    <p>Where every asset is in its lifecycle</p>
+                </div>
+                <a class="dash-link" href="/Assets">View register</a>
+            </header>
+            @if (totalAssets == 0)
+            {
+                <div class="dash-empty">No assets registered yet. <a class="dash-link" href="/Assets/Register">Register the first one</a>.</div>
+            }
+            else
+            {
+                <div class="dash-stack" role="img" aria-label="Share of assets by status">
+                    @foreach (var b in statusBuckets.Where(b => b.Count > 0))
+                    {
+                        <span class="dash-stack-seg @b.Css" style="width:@DashText.Pct(b.Count * 100.0 / statusTotal)%" title="@b.Label: @b.Count"></span>
+                    }
+                </div>
+                <ul class="dash-legend dash-legend-3">
+                    @foreach (var b in statusBuckets)
+                    {
+                        <li class="@(b.Count == 0 ? "is-zero" : "")">
+                            <span class="dash-swatch @b.Css" aria-hidden="true"></span>
+                            <span>@b.Label</span>
+                            <strong>@b.Count.ToString("N0")</strong>
+                        </li>
+                    }
+                </ul>
+            }
+        </article>
+
+        <article class="dash-card">
+            <header class="dash-card-head">
+                <div>
+                    <h2>Needs action</h2>
+                    <p>Work waiting in the register</p>
+                </div>
+            </header>
+            @if (!openItems.Any())
+            {
+                <div class="dash-empty dash-empty-ok">@UiIcons.Svg("check") All clear. Nothing is waiting.</div>
+            }
+            else
+            {
+                <ul class="dash-list">
+                    @foreach (var item in openItems)
+                    {
+                        <li>
+                            <a class="dash-attn" href="@item.Href">
+                                <span class="dash-dot tone-@item.Tone" aria-hidden="true"></span>
+                                <span class="dash-attn-label">@item.Label</span>
+                                <span class="dash-count tone-@item.Tone">@item.Count</span>
+                                <svg class="dash-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+                            </a>
+                        </li>
+                    }
+                </ul>
+            }
+        </article>
+    </section>
+
+    <section class="dash-grid">
+        <article class="dash-card">
+            <header class="dash-card-head">
+                <div>
+                    <h2>By category</h2>
+                    <p>Largest asset categories</p>
+                </div>
+                <a class="dash-link" href="/MasterData">Categories</a>
+            </header>
+            @if (!categories.Any())
+            {
+                <div class="dash-empty">No categorised assets yet.</div>
+            }
+            else
+            {
+                <ul class="dash-hbars">
+                    @foreach (var c in categories)
+                    {
+                        <li>
+                            <span class="dash-hbar-label" title="@c.Key">@c.Key</span>
+                            <span class="dash-hbar-track"><span class="dash-hbar" style="width:@DashText.Pct(c.Value * 100.0 / maxCat)%"></span></span>
+                            <strong>@c.Value.ToString("N0")</strong>
+                        </li>
+                    }
+                </ul>
+            }
+        </article>
+
+        <article class="dash-card">
+            <header class="dash-card-head">
+                <div>
+                    <h2>By department</h2>
+                    <p>Departments holding the most assets</p>
+                </div>
+                <a class="dash-link" href="/Reports">Reports</a>
+            </header>
+            @if (!departments.Any())
+            {
+                <div class="dash-empty">No assets are assigned to a department yet.</div>
+            }
+            else
+            {
+                <ul class="dash-hbars">
+                    @foreach (var d in departments)
+                    {
+                        <li>
+                            <span class="dash-hbar-label" title="@d.Key">@d.Key</span>
+                            <span class="dash-hbar-track"><span class="dash-hbar dash-hbar-gold" style="width:@DashText.Pct(d.Value * 100.0 / maxDept)%"></span></span>
+                            <strong>@d.Value.ToString("N0")</strong>
+                        </li>
+                    }
+                </ul>
+            }
+        </article>
+    </section>
+
+    <section class="dash-grid dash-grid-wide">
+        <article class="dash-card">
+            <header class="dash-card-head">
+                <div>
+                    <h2>Recent movements</h2>
+                    <p>Latest status changes across the register</p>
+                </div>
+                <a class="dash-link" href="/Movements">All movements</a>
+            </header>
             @if (!movements.Any())
             {
-                <li class="text-muted">No recent movements recorded.</li>
+                <div class="dash-empty">No movements recorded yet.</div>
             }
-            @foreach (var move in movements.Take(6))
+            else
             {
-                <li>
-                    <div class="feed-title">@move.AssetName</div>
-                    <div class="feed-meta">@move.Detail · @move.OccurredAt.ToString("dd MMM yyyy HH:mm")</div>
-                </li>
+                <ul class="dash-feed">
+                    @foreach (var mv in movements.Take(6))
+                    {
+                        <li>
+                            <span class="dash-avatar" aria-hidden="true">@UiIcons.Svg("box")</span>
+                            <div class="dash-feed-body">
+                                <div><strong>@mv.AssetName</strong> <span class="dash-tag">@mv.AssetTag</span></div>
+                                <div class="dash-feed-detail">@mv.Detail</div>
+                                <time datetime="@mv.OccurredAt.ToString("o")">@(string.IsNullOrWhiteSpace(mv.Actor) ? "" : mv.Actor + " · ")@DashText.Ago(mv.OccurredAt)</time>
+                            </div>
+                        </li>
+                    }
+                </ul>
             }
-        </ul>
-        <a asp-controller="Movements" asp-action="Index" class="btn btn-sm btn-outline" style="margin-top:0.75rem;">View all movements</a>
-    </div>
+        </article>
+
+        <article class="dash-card">
+            <header class="dash-card-head">
+                <div>
+                    <h2>Missing financial details</h2>
+                    <p>Newest assets without a cost or GL code</p>
+                </div>
+            </header>
+            @if (!missingFinance.Any())
+            {
+                <div class="dash-empty dash-empty-ok">@UiIcons.Svg("check") Every asset has its cost and GL code.</div>
+            }
+            else
+            {
+                <ul class="dash-list">
+                    @foreach (var f in missingFinance)
+                    {
+                        <li>
+                            <a class="dash-attn" href="/Assets/Detail/@f.AssetId">
+                                <span class="dash-attn-label">
+                                    <strong>@f.AssetName</strong>
+                                    <span class="dash-attn-sub">@f.TagCode · missing @(f.MissingPurchaseCost && f.MissingGlCode ? "cost and GL code" : f.MissingPurchaseCost ? "cost" : "GL code")</span>
+                                </span>
+                                <svg class="dash-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+                            </a>
+                        </li>
+                    }
+                </ul>
+            }
+        </article>
+    </section>
 </div>

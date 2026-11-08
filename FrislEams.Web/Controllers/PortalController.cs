@@ -68,7 +68,12 @@ public class PortalController(AppDbContext db, DashboardService dashboardService
         ViewBag.Metrics = await dashboardService.GetAuditorPortalMetricsAsync();
         ViewBag.Reconciliation = await hub.GetReconciliationSummaryAsync();
         ViewBag.Exceptions = await hub.GetExceptionsAsync();
-        ViewBag.AuditTrails = await db.AssetStatusHistories.AsQueryable().OrderByDescending(h => h.ChangedAt).Take(8).ToListAsync();
+        var trails = await db.AssetStatusHistories.AsQueryable().OrderByDescending(h => h.ChangedAt).Take(8).ToListAsync();
+        ViewBag.AuditTrails = trails;
+        var trailAssetIds = trails.Select(t => t.AssetId).Distinct().ToList();
+        ViewBag.TrailAssets = (await db.Assets.AsQueryable().Where(a => trailAssetIds.Contains(a.Id)).ToListAsync())
+            .ToDictionary(a => a.Id, a => (a.TagCode, a.AssetName));
+        ViewBag.AuditPeriods = await db.AuditScanPeriods.AsQueryable().CountAsync();
         return View();
     }
 

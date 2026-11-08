@@ -1,95 +1,43 @@
 @{
-    var portalHome = FrislEams.Web.Services.PortalService.GetHomePath(Context.Session.GetString("UserRole"));
-    var currentPath = Context.Request.Path.Value ?? "/";
-    bool IsActive(string path) => currentPath.StartsWith(path, StringComparison.OrdinalIgnoreCase);
-
-    // Line icons (24x24, stroke = currentColor). Styled in portal-admin.css.
-    var icons = new Dictionary<string, string>
+    var portalHome = PortalService.GetHomePath(Context.Session.GetString("UserRole"));
+    var nav = new PortalNavModel("Admin", "Admin Portal", "FRISL Asset Management", "shield", new[]
     {
-        ["dashboard"] = "<rect x='3' y='3' width='7' height='9' rx='1'/><rect x='14' y='3' width='7' height='5' rx='1'/><rect x='14' y='12' width='7' height='9' rx='1'/><rect x='3' y='16' width='7' height='5' rx='1'/>",
-        ["bell"] = "<path d='M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9'/><path d='M13.73 21a2 2 0 0 1-3.46 0'/>",
-        ["box"] = "<path d='M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z'/><path d='M3.27 6.96 12 12.01l8.73-5.05M12 22.08V12'/>",
-        ["assign"] = "<path d='M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2'/><circle cx='9' cy='7' r='4'/><path d='m16 11 2 2 4-4'/>",
-        ["transfer"] = "<path d='m17 3 4 4-4 4'/><path d='M3 7h18'/><path d='m7 21-4-4 4-4'/><path d='M21 17H3'/>",
-        ["trash"] = "<path d='M3 6h18'/><path d='M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2'/>",
-        ["inbox"] = "<path d='M22 12h-6l-2 3h-4l-2-3H2'/><path d='M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z'/>",
-        ["wrench"] = "<path d='M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z'/>",
-        ["clock"] = "<circle cx='12' cy='12' r='10'/><path d='M12 6v6l4 2'/>",
-        ["tag"] = "<path d='M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z'/><circle cx='7' cy='7' r='1.5'/>",
-        ["wifi"] = "<path d='M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0'/><circle cx='12' cy='20' r='1'/>",
-        ["scale"] = "<path d='M12 3v18M5 21h14'/><path d='m3 9 3-6 3 6a3 3 0 0 1-6 0zM15 9l3-6 3 6a3 3 0 0 1-6 0z'/><path d='M6 3h12'/>",
-        ["chart"] = "<path d='M3 3v18h18'/><path d='M7 15l4-4 3 3 5-6'/>",
-        ["users"] = "<path d='M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2'/><circle cx='9' cy='7' r='4'/><path d='M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75'/>",
-        ["shield"] = "<path d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'/>",
-        ["id"] = "<rect x='2' y='5' width='20' height='14' rx='2'/><circle cx='8' cy='12' r='2'/><path d='M14 10h4M14 14h4'/>",
-        ["truck"] = "<path d='M1 3h15v13H1zM16 8h4l3 3v5h-7z'/><circle cx='5.5' cy='18.5' r='2.5'/><circle cx='18.5' cy='18.5' r='2.5'/>",
-        ["layers"] = "<path d='m12 2 10 5-10 5L2 7z'/><path d='m2 17 10 5 10-5M2 12l10 5 10-5'/>",
-        ["gear"] = "<circle cx='12' cy='12' r='3'/><path d='M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z'/>",
-        ["log"] = "<path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/><path d='M14 2v6h6M8 13h8M8 17h5'/>",
-    };
-
-    var groups = new (string Title, (string Label, string Href, string Match, string Icon)[] Items)[]
-    {
-        ("Overview", new[]
+        new NavGroup("Overview", new[]
         {
-            ("Dashboard", portalHome, "/Portal/Admin", "dashboard"),
-            ("Notifications", "/Notifications", "/Notifications", "bell"),
+            new NavLink("Dashboard", portalHome, "/Portal/Admin", "dashboard"),
+            new NavLink("Notifications", "/Notifications", "/Notifications", "bell"),
         }),
-        ("Assets", new[]
+        new NavGroup("Assets", new[]
         {
-            ("Asset register", "/Assets", "/Assets", "box"),
-            ("Assignments", "/Assignments", "/Assignments", "assign"),
-            ("Transfers", "/Transfers", "/Transfers", "transfer"),
-            ("Disposals", "/Disposals", "/Disposals", "trash"),
+            new NavLink("Asset register", "/Assets", "/Assets", "box"),
+            new NavLink("Assignments", "/Assignments", "/Assignments", "assign"),
+            new NavLink("Transfers", "/Transfers", "/Transfers", "transfer"),
+            new NavLink("Disposals", "/Disposals", "/Disposals", "trash"),
         }),
-        ("Approvals", new[]
+        new NavGroup("Approvals", new[]
         {
-            ("Asset requests", "/Workflow/Requests", "/Workflow/Requests", "inbox"),
-            ("Repairs", "/Workflow/Repairs", "/Workflow/Repairs", "wrench"),
-            ("Loans", "/Workflow/Loans", "/Workflow/Loans", "clock"),
+            new NavLink("Asset requests", "/Workflow/Requests", "/Workflow/Requests", "inbox"),
+            new NavLink("Repairs", "/Workflow/Repairs", "/Workflow/Repairs", "wrench"),
+            new NavLink("Loans", "/Workflow/Loans", "/Workflow/Loans", "clock"),
         }),
-        ("RFID & audit", new[]
+        new NavGroup("RFID & audit", new[]
         {
-            ("RFID tags", "/RfidTags", "/RfidTags", "tag"),
-            ("RFID readers", "/RfidReader", "/RfidReader", "wifi"),
-            ("Reconciliation", "/Reconciliation", "/Reconciliation", "scale"),
-            ("Reports", "/Reports", "/Reports", "chart"),
+            new NavLink("RFID tags", "/RfidTags", "/RfidTags", "tag"),
+            new NavLink("RFID readers", "/RfidReader", "/RfidReader", "wifi"),
+            new NavLink("Reconciliation", "/Reconciliation", "/Reconciliation", "scale"),
+            new NavLink("Reports", "/Reports", "/Reports", "chart"),
         }),
-        ("Administration", new[]
+        new NavGroup("Administration", new[]
         {
-            ("Users", "/Users", "/Users", "users"),
-            ("Roles", "/UserRoles", "/UserRoles", "shield"),
-            ("Staff", "/Staff", "/Staff", "id"),
-            ("Vendors", "/Vendors", "/Vendors", "truck"),
-            ("Master data", "/MasterData", "/MasterData", "layers"),
-            ("System settings", "/Settings", "/Settings", "gear"),
-            ("Audit logs", "/AuditTrails", "/AuditTrails", "log"),
+            new NavLink("Users", "/Users", "/Users", "users"),
+            new NavLink("Roles", "/UserRoles", "/UserRoles", "shield"),
+            new NavLink("Staff", "/Staff", "/Staff", "id"),
+            new NavLink("Vendors", "/Vendors", "/Vendors", "truck"),
+            new NavLink("Master data", "/MasterData", "/MasterData", "layers"),
+            new NavLink("System settings", "/Settings", "/Settings", "gear"),
+            new NavLink("Data import", "/DataImport", "/DataImport", "upload"),
+            new NavLink("Audit logs", "/AuditTrails", "/AuditTrails", "log"),
         }),
-    };
+    });
 }
-<aside class="portal-sidebar portal-sidebar-admin" id="portalSidebar">
-    <div class="portal-sidebar-brand">
-        <div class="portal-sidebar-icon" aria-hidden="true">
-            <svg class="adm-nav-svg" viewBox="0 0 24 24">@Html.Raw(icons["shield"])</svg>
-        </div>
-        <div>
-            <div class="portal-sidebar-title">Admin Portal</div>
-            <div class="portal-sidebar-subtitle">FRISL Asset Management</div>
-        </div>
-    </div>
-    <nav class="portal-sidebar-nav" aria-label="Admin navigation">
-        @foreach (var group in groups)
-        {
-            <div class="adm-nav-group">@group.Title</div>
-            @foreach (var item in group.Items)
-            {
-                var active = IsActive(item.Match);
-                <a href="@item.Href" class="portal-nav-item @(active ? "active" : "")" aria-current="@(active ? "page" : null)">
-                    <svg class="adm-nav-svg" viewBox="0 0 24 24" aria-hidden="true">@Html.Raw(icons[item.Icon])</svg>
-                    <span>@item.Label</span>
-                </a>
-            }
-        }
-    </nav>
-    @await Html.PartialAsync("_Sidebars/_PortalSidebarFooter")
-</aside>
+<partial name="_Sidebars/_PortalNav" model="nav" />

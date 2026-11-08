@@ -215,6 +215,11 @@ public static class PortalService
             return PortalCapabilities.CanManageUsers(portal);
         }
 
+        if (path.StartsWith("/dataimport"))
+        {
+            return PortalCapabilities.CanManageSystemSettings(portal);
+        }
+
         if (path.StartsWith("/settings"))
         {
             return portal is BackofficePortal or AdminPortal;

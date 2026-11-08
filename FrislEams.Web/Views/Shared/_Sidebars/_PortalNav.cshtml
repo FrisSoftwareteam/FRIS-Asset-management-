@@ -1,0 +1,31 @@
+@model FrislEams.Web.Services.PortalNavModel
+@{
+    var currentPath = Context.Request.Path.Value ?? "/";
+    bool IsActive(FrislEams.Web.Services.NavLink link) =>
+        currentPath.StartsWith(link.Match, StringComparison.OrdinalIgnoreCase)
+        && (link.Exclude is null || !currentPath.StartsWith(link.Exclude, StringComparison.OrdinalIgnoreCase));
+}
+<aside class="portal-sidebar portal-sidebar-@Model.Portal.ToLowerInvariant()" id="portalSidebar">
+    <div class="portal-sidebar-brand">
+        <div class="portal-sidebar-icon" aria-hidden="true">@UiIcons.Svg(Model.BrandIcon, "dash-nav-svg")</div>
+        <div>
+            <div class="portal-sidebar-title">@Model.Title</div>
+            <div class="portal-sidebar-subtitle">@Model.Subtitle</div>
+        </div>
+    </div>
+    <nav class="portal-sidebar-nav" aria-label="@Model.Title navigation">
+        @foreach (var group in Model.Groups)
+        {
+            <div class="dash-nav-group">@group.Title</div>
+            @foreach (var item in group.Items)
+            {
+                var active = IsActive(item);
+                <a href="@item.Href" class="portal-nav-item @(active ? "active" : "")" aria-current="@(active ? "page" : null)">
+                    @UiIcons.Svg(item.Icon, "dash-nav-svg")
+                    <span>@item.Label</span>
+                </a>
+            }
+        }
+    </nav>
+    @await Html.PartialAsync("_Sidebars/_PortalSidebarFooter")
+</aside>

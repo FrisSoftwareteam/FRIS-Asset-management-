@@ -1,29 +1,43 @@
 @{
-    var portalHome = FrislEams.Web.Services.PortalService.GetHomePath(Context.Session.GetString("UserRole"));
-    var currentPath = Context.Request.Path.Value ?? "/";
-    bool IsActive(string path) => currentPath.StartsWith(path, StringComparison.OrdinalIgnoreCase);
+    var portalHome = PortalService.GetHomePath(Context.Session.GetString("UserRole"));
+    var nav = new PortalNavModel("Backoffice", "Backoffice Portal", "Asset operations", "briefcase", new[]
+    {
+        new NavGroup("Overview", new[]
+        {
+            new NavLink("Dashboard", portalHome, "/Portal/Backoffice", "dashboard"),
+            new NavLink("Notifications", "/Notifications", "/Notifications", "bell"),
+        }),
+        new NavGroup("Assets", new[]
+        {
+            new NavLink("Register asset", "/Assets/Register", "/Assets/Register", "plus"),
+            new NavLink("Asset register", "/Assets", "/Assets", "box", Exclude: "/Assets/Register"),
+            new NavLink("Assignments", "/Assignments", "/Assignments", "assign"),
+            new NavLink("Transfers", "/Transfers", "/Transfers", "transfer"),
+            new NavLink("Movements", "/Movements", "/Movements", "list"),
+            new NavLink("Disposals", "/Disposals", "/Disposals", "trash"),
+        }),
+        new NavGroup("Approvals", new[]
+        {
+            new NavLink("Asset requests", "/Workflow/Requests", "/Workflow/Requests", "inbox"),
+            new NavLink("Repairs", "/Workflow/Repairs", "/Workflow/Repairs", "wrench"),
+            new NavLink("Loans", "/Workflow/Loans", "/Workflow/Loans", "clock"),
+        }),
+        new NavGroup("RFID & verification", new[]
+        {
+            new NavLink("RFID tags", "/RfidTags", "/RfidTags", "tag"),
+            new NavLink("RFID scan", "/RfidReader", "/RfidReader", "wifi"),
+            new NavLink("Stock verification", "/StockVerification", "/StockVerification", "check"),
+            new NavLink("Reconciliation", "/Reconciliation", "/Reconciliation", "scale"),
+            new NavLink("Exceptions", "/Exceptions", "/Exceptions", "alert"),
+        }),
+        new NavGroup("Records", new[]
+        {
+            new NavLink("Reports", "/Reports", "/Reports", "chart"),
+            new NavLink("Users", "/Users", "/Users", "users"),
+            new NavLink("Staff", "/Staff", "/Staff", "id"),
+            new NavLink("Vendors", "/Vendors", "/Vendors", "truck"),
+            new NavLink("Master data", "/MasterData", "/MasterData", "layers"),
+        }),
+    });
 }
-<aside class="portal-sidebar portal-sidebar-backoffice" id="portalSidebar">
-    <div class="portal-sidebar-brand">
-        <div class="portal-sidebar-icon">💼</div>
-        <div>
-            <div class="portal-sidebar-title">BACKOFFICE PORTAL</div>
-            <div class="portal-sidebar-subtitle">Operational Control &amp; Oversight</div>
-        </div>
-    </div>
-    <nav class="portal-sidebar-nav">
-        <a href="@portalHome" class="portal-nav-item @(IsActive("/Portal/Backoffice") ? "active" : "")"><span class="nav-ico">📊</span> Dashboard</a>
-        <a asp-controller="Users" asp-action="Index" class="portal-nav-item @(IsActive("/Users") ? "active" : "")"><span class="nav-ico">👥</span> Users</a>
-        <a asp-controller="MasterData" asp-action="Index" class="portal-nav-item @(IsActive("/MasterData") ? "active" : "")"><span class="nav-ico">🗂️</span> Master Data</a>
-        <a asp-controller="Assets" asp-action="Register" class="portal-nav-item @(IsActive("/Assets/Register") ? "active" : "")"><span class="nav-ico">➕</span> Register Asset</a>
-        <a asp-controller="Assets" asp-action="Index" class="portal-nav-item @(IsActive("/Assets") && !IsActive("/Assets/Register") ? "active" : "")"><span class="nav-ico">🏷️</span> Assets</a>
-        <a asp-controller="RfidTags" asp-action="Index" class="portal-nav-item @(IsActive("/RfidTags") ? "active" : "")"><span class="nav-ico">📡</span> RFID Tags</a>
-        <a asp-controller="RfidReader" asp-action="Index" class="portal-nav-item @(IsActive("/RfidReader") ? "active" : "")"><span class="nav-ico">📲</span> RFID Scan</a>
-        <a asp-controller="Assignments" asp-action="Index" class="portal-nav-item @(IsActive("/Assignments") ? "active" : "")"><span class="nav-ico">👤</span> Assignments</a>
-        <a asp-controller="Transfers" asp-action="Index" class="portal-nav-item @(IsActive("/Transfers") ? "active" : "")"><span class="nav-ico">🔄</span> Transfers</a>
-        <a asp-controller="StockVerification" asp-action="Index" class="portal-nav-item @(IsActive("/StockVerification") ? "active" : "")"><span class="nav-ico">✅</span> Stock Verification</a>
-        <a asp-controller="Reports" asp-action="Index" class="portal-nav-item @(IsActive("/Reports") ? "active" : "")"><span class="nav-ico">📈</span> Reports</a>
-        <a asp-controller="AuditTrails" asp-action="Index" class="portal-nav-item @(IsActive("/AuditTrails") ? "active" : "")"><span class="nav-ico">📜</span> Audit Trail</a>
-    </nav>
-    @await Html.PartialAsync("_Sidebars/_PortalSidebarFooter")
-</aside>
+<partial name="_Sidebars/_PortalNav" model="nav" />

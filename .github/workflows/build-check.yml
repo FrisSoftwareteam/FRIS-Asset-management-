@@ -1,0 +1,26 @@
+# Compiles the app on every pull request and on pushes to branches other than main,
+# so build errors show up before anything is merged and deployed.
+name: Build check
+
+on:
+  pull_request:
+  push:
+    branches-ignore:
+      - 'main'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.x'
+
+      - name: Build
+        run: dotnet build --configuration Release
