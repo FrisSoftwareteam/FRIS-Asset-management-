@@ -238,3 +238,11 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 #uploadBatch { margin: 0 0 0.9rem; }
 
 .sc-lastread { margin: 0.5rem 0 0; font-family: ui-monospace, Menlo, monospace; font-size: 0.78rem; color: var(--muted); word-break: break-all; }
+
+/* Reader file import */
+.sc-import h2 { font-size: 1rem; }
+.sc-filebtn { position: relative; overflow: hidden; }
+.sc-filebtn input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.sc-paste { margin-top: 0.75rem; }
+.sc-paste summary { cursor: pointer; font-size: 0.9rem; font-weight: 700; color: var(--blue); }
+.sc-paste textarea { width: 100%; margin-top: 0.6rem; padding: 0.6rem 0.7rem; border: 1px solid var(--line); border-radius: 10px; font: inherit; font-family: ui-monospace, Menlo, monospace; font-size: 0.9rem; }

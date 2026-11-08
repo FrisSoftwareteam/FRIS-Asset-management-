@@ -258,6 +258,22 @@ public class MobileApiController(
         }
     }
 
+    /// <summary>
+    /// Pull tag codes out of a file saved by a handheld reader's own app (for example the Hopeland
+    /// UHF app's "Save"). Accepts text, CSV, Excel .xlsx and old .xls. Returns the distinct codes
+    /// in the order found, so the phone can add them to an audit batch.
+    /// </summary>
+    [HttpPost("/api/reader-file/codes")]
+    [RequestSizeLimit(20 * 1024 * 1024)]
+    public async Task<IActionResult> ReaderFileCodes(IFormFile file, CancellationToken ct)
+    {
+        if (file is null || file.Length == 0) return BadRequest(new { error = "Choose the file the reader saved." });
+        using var ms = new MemoryStream();
+        await file.CopyToAsync(ms, ct);
+        var codes = ReaderFileParser.ExtractCodes(ms.ToArray());
+        return Ok(new { fileName = file.FileName, count = codes.Count, codes });
+    }
+
     // ------------------------------------------------------------------ helpers
 
     private sealed record LookupContext(

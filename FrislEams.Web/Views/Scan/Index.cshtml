@@ -92,6 +92,20 @@
                     </button>
                     <p class="sc-hint">Scans are kept on this phone until you upload, even if you close the page.</p>
                 </form>
+                <div class="sc-card sc-import">
+                    <h2>From the reader's own app</h2>
+                    <p class="sc-muted">In the UHF app: Inventory, then Save (into Download). Then pick that file here.</p>
+                    <label class="sc-btn sc-btn-ghost sc-wide sc-filebtn">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5M12 3v12"/></svg>
+                        Import file from reader
+                        <input type="file" id="readerFile" accept=".txt,.csv,.xls,.xlsx,text/plain,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,*/*" />
+                    </label>
+                    <details class="sc-paste">
+                        <summary>Or paste codes</summary>
+                        <textarea id="pasteCodes" rows="4" placeholder="One code per line, or separated by spaces or commas"></textarea>
+                        <button type="button" class="sc-btn sc-btn-ghost sc-wide" id="addPasted">Add pasted codes</button>
+                    </details>
+                </div>
                 <button type="button" class="sc-btn sc-btn-primary sc-wide" id="uploadBatch" disabled>Upload batch</button>
                 <ul class="sc-feed" id="auditFeed"></ul>
                 <div id="auditUploads"></div>
@@ -281,7 +295,52 @@
             buzz(r.ok); renderAudit();
         }).catch(function () { item.known = false; renderAudit(); });
     }
+    // Add many codes at once (file import or paste): one bulk lookup instead of one call per tag.
+    function addAuditCodes(list) {
+        if (!audit.period) return;
+        var have = {}; audit.items.forEach(function (i) { have[i.code.toLowerCase()] = true; });
+        var fresh = [];
+        list.forEach(function (c) {
+            c = String(c || '').trim();
+            if (c && !have[c.toLowerCase()]) { have[c.toLowerCase()] = true; fresh.push({ code: c, name: '', known: null }); }
+        });
+        if (!fresh.length) { toast('No new codes found', 'err'); return; }
+        audit.items = audit.items.concat(fresh); renderAudit();
+        toast('Added ' + fresh.length + ' tag' + (fresh.length === 1 ? '' : 's'), 'ok');
+        for (var i = 0; i < fresh.length; i += 500) {
+            (function (chunk) {
+                api('POST', '/api/assets/resolve', { codes: chunk.map(function (x) { return x.code; }) }).then(function (r) {
+                    var byCode = {}; (r.ok ? r.data.results : []).forEach(function (x) { byCode[String(x.code).toLowerCase()] = x; });
+                    chunk.forEach(function (item) {
+                        var x = byCode[item.code.toLowerCase()];
+                        item.known = !!(x && x.found);
+                        item.name = x && x.asset ? x.asset.assetName + ' · ' + (x.asset.location || x.asset.department || '') : '';
+                    });
+                    renderAudit();
+                });
+            })(fresh.slice(i, i + 500));
+        }
+    }
+
     if ($('auditSetup')) {
+        $('readerFile').addEventListener('change', function () {
+            var f = this.files && this.files[0]; if (!f) return;
+            var form = new FormData(); form.append('file', f);
+            toast('Reading ' + f.name + '…');
+            fetch('/api/reader-file/codes', { method: 'POST', body: form, credentials: 'same-origin' })
+                .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+                .then(function (r) {
+                    if (!r.ok) { toast(r.data.error || 'Could not read that file', 'err'); return; }
+                    if (!r.data.count) { toast('No tag codes found in ' + f.name, 'err'); return; }
+                    addAuditCodes(r.data.codes);
+                })
+                .catch(function () { toast('Upload failed. Check your connection.', 'err'); });
+            this.value = '';
+        });
+        $('addPasted').addEventListener('click', function () {
+            var codes = $('pasteCodes').value.split(/[\s,;]+/).filter(function (c) { return c.length >= 6; });
+            addAuditCodes(codes); $('pasteCodes').value = '';
+        });
         $('auditPeriods').addEventListener('click', function (e) {
             var b = e.target.closest('button[data-period]'); if (!b) return;
             var list = JSON.parse($('auditPeriods').dataset.periods || '[]');
