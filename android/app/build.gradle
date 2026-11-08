@@ -1,0 +1,61 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'ng.firstregistrars.frislscan'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'ng.firstregistrars.frislscan'
+        minSdk 23
+        targetSdk 34
+        // CI passes -PversionCode=<run number> so each build installs over the last one.
+        versionCode (project.findProperty('versionCode') ?: '1') as int
+        versionName "1.0.${versionCode}"
+        // The web app the APK opens. Change here if the site moves.
+        buildConfigField 'String', 'START_URL', '"https://fasset.firstregistrarsapi.com/Scan"'
+        buildConfigField 'String', 'SITE_HOST', '"fasset.firstregistrarsapi.com"'
+    }
+
+    signingConfigs {
+        // Internal sideloaded app: if FRISL_KEYSTORE is set (see android/README.md) the release is
+        // signed with that permanent key; otherwise with the build machine's debug key.
+        release {
+            def ks = System.getenv('FRISL_KEYSTORE')
+            if (ks != null && new File(ks).exists()) {
+                storeFile new File(ks)
+                storePassword System.getenv('FRISL_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('FRISL_KEY_ALIAS')
+                keyPassword System.getenv('FRISL_KEY_PASSWORD')
+            } else {
+                def debugKs = new File(System.getProperty('user.home'), '.android/debug.keystore')
+                storeFile debugKs
+                storePassword 'android'
+                keyAlias 'androiddebugkey'
+                keyPassword 'android'
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    // Vendor RFID SDK (.jar / .aar) goes in app/libs. See android/README.md.
+    implementation fileTree(dir: 'libs', include: ['*.jar', '*.aar'])
+}

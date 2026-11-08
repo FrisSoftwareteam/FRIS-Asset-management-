@@ -590,6 +590,39 @@
     document.addEventListener('visibilitychange', function () { if (!document.hidden) focusScan(); });
     window.addEventListener('focus', focusScan);
 
+    // ---------------------------------------------------------------- FRISL Scan Android app
+    // Inside the APK, window.FrislNative exists. The app forwards the hardware trigger here and,
+    // once a vendor RFID SDK is added, the tags it reads (window.frislOnTags).
+    var native = window.FrislNative || null;
+    function activeTab() { var t = document.querySelector('.sc-tab.is-on'); return t ? t.dataset.tab : 'lookup'; }
+    var tagBuffer = [], tagTimer = null;
+    window.frislOnTags = function (codes) {
+        (codes || []).forEach(function (c) { if (c) tagBuffer.push(String(c)); });
+        clearTimeout(tagTimer);
+        tagTimer = setTimeout(function () {
+            var batch = tagBuffer.splice(0);
+            if (!batch.length) return;
+            var tab = activeTab();
+            if (tab === 'audit' && audit.period) addAuditCodes(batch);
+            else if (tab === 'check' && sessionId) batch.forEach(addScan);
+            else { $('lookupCode').value = batch[batch.length - 1]; lookup(batch[batch.length - 1]); }
+        }, 250);
+    };
+    window.frislTrigger = function (down, keyCode, hasReader) {
+        if (!down || hasReader) return;
+        if (activeTab() === 'audit' && audit.period) toast('Read tags in the UHF app, tap Save, then "Import file from reader"');
+        else toast('Trigger pressed (key ' + keyCode + '). Direct RFID reading needs the reader SDK.');
+    };
+    if (native) {
+        document.body.classList.add('in-app');
+        try {
+            var badge = document.createElement('span');
+            badge.className = 'sc-appbadge';
+            badge.textContent = native.hasReader() ? 'Reader: ' + native.readerName() : 'App ' + native.version();
+            document.querySelector('.sc-brand').appendChild(badge);
+        } catch (e) {}
+    }
+
     // Open the default tab (Audit for auditors, Look up for everyone else).
     var first = document.querySelector('.sc-tab[data-tab="@defaultTab"]') || document.querySelector('.sc-tab');
     if (first) first.click();

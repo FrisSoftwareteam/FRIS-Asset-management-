@@ -246,3 +246,6 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .sc-paste { margin-top: 0.75rem; }
 .sc-paste summary { cursor: pointer; font-size: 0.9rem; font-weight: 700; color: var(--blue); }
 .sc-paste textarea { width: 100%; margin-top: 0.6rem; padding: 0.6rem 0.7rem; border: 1px solid var(--line); border-radius: 10px; font: inherit; font-family: ui-monospace, Menlo, monospace; font-size: 0.9rem; }
+
+/* Inside the FRISL Scan Android app */
+.sc-appbadge { justify-self: start; margin-top: 0.15rem; padding: 0.05rem 0.45rem; border-radius: 999px; background: rgba(196,155,54,0.25); color: #f3dfa8; font-size: 0.68rem; font-weight: 700; }
