@@ -7,7 +7,7 @@ using MongoDB.Driver;
 namespace FrislEams.Web.Controllers;
 
 /// <summary>Admin page for importing the legacy FAMAS JSON export into MongoDB.</summary>
-public class DataImportController(AppDbContext db, FamasImportService importer, RoleGuard roleGuard) : Controller
+public class DataImportController(AppDbContext db, FamasImportService importer, SampleDataCleanupService samples, RoleGuard roleGuard) : Controller
 {
     private const long MaxUploadBytes = 100L * 1024 * 1024;
 
@@ -18,7 +18,22 @@ public class DataImportController(AppDbContext db, FamasImportService importer, 
 
         ViewData["Title"] = "Data import";
         ViewBag.Runs = await LoadRunsAsync();
+        ViewBag.SamplePreview = await samples.RunAsync(apply: false);
         return View();
+    }
+
+    [HttpPost("/DataImport/RemoveSamples")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RemoveSamples()
+    {
+        if (!IsAdmin()) return Redirect(PortalService.GetHomePath(roleGuard.GetCurrentRole(HttpContext)));
+
+        var removed = await samples.RunAsync(apply: true);
+        var total = removed.Sum(r => r.Count);
+        TempData["Success"] = total == 0
+            ? "There was no sample data left to remove."
+            : $"Removed {total:N0} sample records: " + string.Join(", ", removed.Where(r => r.Count > 0).Select(r => $"{r.Label.ToLowerInvariant()} ({r.Count})")) + ".";
+        return Redirect("/DataImport");
     }
 
     [HttpPost("/DataImport/Famas")]
@@ -56,6 +71,7 @@ public class DataImportController(AppDbContext db, FamasImportService importer, 
 
         ViewBag.Result = result;
         ViewBag.Runs = await LoadRunsAsync();
+        ViewBag.SamplePreview = await samples.RunAsync(apply: false);
         return View("Index");
     }
 
