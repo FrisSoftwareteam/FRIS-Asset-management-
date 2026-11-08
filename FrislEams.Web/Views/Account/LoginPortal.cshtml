@@ -19,7 +19,7 @@
     ViewData["ButtonText"] = $"Sign in to {portal} Portal";
     ViewData["UserPlaceholder"] = $"Enter your {portal.ToLowerInvariant()} username";
     ViewData["DemoUsers"] = portal == "Staff"
-        ? new (string Label, string User, string Password)[] { ("Staff", "Staff", "Staff1"), ("IT HOD", "ithod", "HodIt1") }
+        ? new (string Label, string User, string Password)[] { ("Staff", "Staff", "Staff1") }
         : new (string Label, string User, string Password)[]
           {
               (demoUser, demoUser, portal == "Auditor" ? "auditor1" : portal == "Admin" ? "Admin1" : "Washington1")

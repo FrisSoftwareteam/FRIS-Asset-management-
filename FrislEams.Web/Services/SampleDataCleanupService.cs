@@ -43,7 +43,8 @@ public sealed class SampleDataCleanupService(AppDbContext db)
         "Canon printer in HR is damaged beyond economic repair. Requesting replacement."
     ];
 
-    // FR-009..FR-011 (Emmanuel, Abayomi, Ngozi Abara) are linked to built-in logins, so they stay.
+    // FR-009 and FR-010 (Emmanuel, Abayomi) are linked to built-in logins, so they stay.
+    // Ngozi Abara (login "ithod", staff FR-011) is a made-up demo person and is removed outright.
     private static readonly string[] SampleStaffIds = ["FR-001", "FR-002", "FR-003", "FR-004", "FR-005", "FR-006", "FR-007", "FR-008"];
     private static readonly string[] SampleDepartmentCodes = ["IT", "FIN", "HR", "OPS", "LEG", "AUD", "INV", "CRP"];
     private static readonly string[] SampleLocationCodes = ["HQ-ABJ", "LG-BRN", "IB-BRN", "PH-BRN", "HQ-BLD", "HQ-GF", "SRV-HQ", "STORE", "ARCH"];
@@ -99,7 +100,13 @@ public sealed class SampleDataCleanupService(AppDbContext db)
                 Builders<BsonDocument>.Filter.In("Title", SampleNotificationTitles),
                 Builders<BsonDocument>.Filter.In("Message", SampleNotificationMessages)), apply, ct));
 
-        // 3. Sample lookups, only where nothing still uses them. Order matters: staff and asset
+        // 3. The fictional "Ngozi Abara" demo account: login and staff record.
+        results.Add(await RemoveAsync("Demo login: Ngozi Abara (ithod)", db.UserAccounts.Collection.CollectionNamespace.CollectionName,
+            Builders<BsonDocument>.Filter.Regex("Username", new BsonRegularExpression("^ithod$", "i")), apply, ct));
+        results.Add(await RemoveAsync("Demo staff: Ngozi Abara", "staff",
+            Builders<BsonDocument>.Filter.Eq("StaffId", "FR-011"), apply, ct));
+
+        // 4. Sample lookups, only where nothing still uses them. Order matters: staff and asset
         //    types first, because they point at departments and categories.
         results.Add(await RemoveUnreferencedAsync("Sample staff", "staff", "StaffId", SampleStaffIds,
             ["CurrentCustodianId", "AssignedToStaffId", "ConfirmedByStaffId", "RejectedByStaffId", "RequestedByStaffId", "ReportedByStaffId"], apply, ct));

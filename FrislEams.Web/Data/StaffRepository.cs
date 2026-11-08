@@ -87,7 +87,6 @@ public static class StaffRepository
     [
         ("FR-009", "Emmanuel", "emmanuel@firstregistrars.ng", "0819-999-9999", "Staff", "IT"),
         ("FR-010", "Abayomi", "abayomi@firstregistrars.ng", "0820-000-0000", "Staff", "IT"),
-        ("FR-011", "Ngozi Abara", "ithod@firstregistrars.ng", "0821-111-1111", "DepartmentHead", "IT"),
     ];
 
     private static async Task EnsureStaffAsync(
