@@ -665,6 +665,58 @@
     .dash-readonly { margin-left: 0; vertical-align: 3px; }
 }
 
+
+/* ---------- Data import page ---------- */
+.dash-card code { padding: 0.05rem 0.35rem; border-radius: 4px; background: #f1f4f8; font-size: 0.82em; }
+
+.dash-upload { display: grid; gap: 0.85rem; justify-items: start; }
+
+.dash-drop {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    gap: 0.3rem;
+    width: 100%;
+    padding: 1.6rem 1rem;
+    border: 2px dashed #c9d3e0;
+    border-radius: 12px;
+    background: #fafbfd;
+    color: var(--dash-muted);
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+}
+
+.dash-drop:hover, .dash-drop:focus-within { border-color: var(--dash-navy); background: #f4f7fb; }
+.dash-drop svg { width: 28px; height: 28px; color: var(--dash-navy); }
+.dash-drop-title { font-weight: 700; color: var(--dash-ink); }
+.dash-drop-sub { font-size: 0.82rem; }
+.dash-drop input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+.dash-btn:disabled { opacity: 0.7; cursor: progress; }
+
+.dash-note { margin: 0.5rem 0 0; font-size: 0.84rem; color: var(--dash-muted); }
+.dash-note-warn { padding: 0.5rem 0.7rem; border-radius: 8px; background: #fbf1dc; color: #7a5a12; }
+
+.dash-plain li { padding: 0.45rem 0; border-top: 1px solid #f0f3f7; font-size: 0.88rem; color: var(--dash-muted); }
+.dash-plain li:first-child { border-top: 0; }
+.dash-plain strong { color: var(--dash-ink); }
+
+.dash-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.dash-table th { padding: 0.5rem 0.6rem; text-align: left; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--dash-faint); border-bottom: 1px solid var(--dash-line); }
+.dash-table td { padding: 0.55rem 0.6rem; border-bottom: 1px solid #f0f3f7; color: var(--dash-ink); }
+.dash-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.dash-import-result.is-ok { border-color: #cfe7da; }
+.dash-import-result.is-ok h2 { color: var(--dash-ok); }
+.dash-import-result.is-error { border-color: #f3c2c2; }
+.dash-import-result.is-error h2 { color: var(--dash-danger); }
+
+.dash-details { margin-top: 0.85rem; }
+.dash-details summary { cursor: pointer; font-size: 0.86rem; font-weight: 600; color: var(--dash-blue); }
+.dash-raw-list { list-style: none; margin: 0.6rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 0.35rem 1.25rem; }
+.dash-raw-list li { display: flex; justify-content: space-between; gap: 0.5rem; font-size: 0.82rem; color: var(--dash-muted); }
+
 /* ---------- Responsive ---------- */
 @media (max-width: 1200px) {
     .dash-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
