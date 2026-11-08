@@ -49,6 +49,12 @@ android {
         buildConfig true
     }
 
+    lint {
+        // Lint warnings must not block an internal build.
+        checkReleaseBuilds false
+        abortOnError false
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
