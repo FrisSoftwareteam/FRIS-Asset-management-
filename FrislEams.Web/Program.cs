@@ -93,6 +93,7 @@ builder.Services.AddHostedService<IntegrationWorker>();
 builder.Services.AddSingleton<MongoWorkbookImportService>();
 builder.Services.AddScoped<MongoVendorService>();
 builder.Services.AddScoped<FamasImportService>();
+builder.Services.AddScoped<SampleDataCleanupService>();
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
