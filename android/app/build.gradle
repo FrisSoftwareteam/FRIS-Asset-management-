@@ -2,6 +2,8 @@ plugins {
     id 'com.android.application'
 }
 
+def appVersionCode = (project.findProperty('versionCode') ?: '1').toString().toInteger()
+
 android {
     namespace 'ng.firstregistrars.frislscan'
     compileSdk 34
@@ -11,8 +13,8 @@ android {
         minSdk 23
         targetSdk 34
         // CI passes -PversionCode=<run number> so each build installs over the last one.
-        versionCode (project.findProperty('versionCode') ?: '1') as int
-        versionName "1.0.${versionCode}"
+        versionCode appVersionCode
+        versionName "1.0.${appVersionCode}"
         // The web app the APK opens. Change here if the site moves.
         buildConfigField 'String', 'START_URL', '"https://fasset.firstregistrarsapi.com/Scan"'
         buildConfigField 'String', 'SITE_HOST', '"fasset.firstregistrarsapi.com"'
