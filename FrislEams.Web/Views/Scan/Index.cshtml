@@ -1,0 +1,341 @@
+@{
+    Layout = null;
+    var canStockCheck = ViewBag.CanStockCheck as bool? ?? false;
+    var canOpenRecord = ViewBag.CanOpenRecord as bool? ?? false;
+    var displayName = ViewBag.DisplayName as string ?? "";
+    var homePath = ViewBag.HomePath as string ?? "/";
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#12416f" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="FRISL Scan" />
+    <link rel="manifest" href="/scan-manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/scan-192.png" />
+    <title>Scan – FRISL EAMS</title>
+    <link rel="stylesheet" href="~/css/scan.css" asp-append-version="true" />
+</head>
+<body>
+<header class="sc-top">
+    <a class="sc-back" href="@homePath" aria-label="Back to portal">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+    </a>
+    <div class="sc-brand">
+        <strong>FRISL Scan</strong>
+        <span>@displayName</span>
+    </div>
+    <a class="sc-signout" href="/Account/Logout">Sign out</a>
+</header>
+
+<nav class="sc-tabs" role="tablist">
+    <button class="sc-tab is-on" role="tab" data-tab="lookup" aria-selected="true">Look up</button>
+    @if (canStockCheck)
+    {
+        <button class="sc-tab" role="tab" data-tab="check" aria-selected="false">Stock check</button>
+    }
+</nav>
+
+<main class="sc-main">
+    <!-- ============ LOOK UP ============ -->
+    <section class="sc-panel" id="panel-lookup">
+        <form class="sc-scanbox" id="lookupForm" autocomplete="off">
+            <label for="lookupCode">Scan an RFID tag, barcode, or type a tag code</label>
+            <div class="sc-inputrow">
+                <input id="lookupCode" inputmode="text" autocapitalize="characters" spellcheck="false" placeholder="e.g. 033-004-000001" autofocus />
+                <button type="submit" class="sc-btn sc-btn-primary">Find</button>
+            </div>
+            <button type="button" class="sc-btn sc-btn-ghost sc-camera" data-target="lookupCode" hidden>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></svg>
+                Scan barcode with camera
+            </button>
+            <p class="sc-hint">Handheld RFID readers work too: pull the trigger while this box is selected.</p>
+        </form>
+
+        <div id="lookupResult" aria-live="polite"></div>
+
+        <div class="sc-recent" id="recentWrap" hidden>
+            <h2>Recent</h2>
+            <ul id="recentList"></ul>
+        </div>
+    </section>
+
+    <!-- ============ STOCK CHECK ============ -->
+    @if (canStockCheck)
+    {
+        <section class="sc-panel" id="panel-check" hidden>
+            <div id="checkSetup">
+                <div class="sc-card">
+                    <h2>Start a stock check</h2>
+                    <p class="sc-muted">Scan every asset you can see. When you finish, assets expected here but not scanned are counted as missing.</p>
+                    <label for="checkDept">Department</label>
+                    <select id="checkDept"><option value="">All departments</option></select>
+                    <label for="checkLoc">Location</label>
+                    <select id="checkLoc"><option value="">All locations</option></select>
+                    <button type="button" class="sc-btn sc-btn-primary sc-wide" id="startCheck">Start stock check</button>
+                </div>
+                <div class="sc-card" id="openChecksCard" hidden>
+                    <h2>Continue a check</h2>
+                    <ul class="sc-list" id="openChecks"></ul>
+                </div>
+            </div>
+
+            <div id="checkRun" hidden>
+                <div class="sc-counts">
+                    <div><strong id="cFound">0</strong><span>Found</span></div>
+                    <div><strong id="cUnexpected">0</strong><span>Unexpected</span></div>
+                    <div><strong id="cDuplicate">0</strong><span>Repeat</span></div>
+                </div>
+                <form class="sc-scanbox" id="checkForm" autocomplete="off">
+                    <label for="checkCode">Scan the next asset</label>
+                    <div class="sc-inputrow">
+                        <input id="checkCode" spellcheck="false" autocapitalize="characters" placeholder="RFID or tag code" />
+                        <button type="submit" class="sc-btn sc-btn-primary">Add</button>
+                    </div>
+                    <button type="button" class="sc-btn sc-btn-ghost sc-camera" data-target="checkCode" hidden>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></svg>
+                        Scan barcode with camera
+                    </button>
+                </form>
+                <ul class="sc-feed" id="checkFeed"></ul>
+                <button type="button" class="sc-btn sc-btn-danger sc-wide" id="finishCheck">Finish stock check</button>
+            </div>
+
+            <div id="checkDone" hidden></div>
+        </section>
+    }
+</main>
+
+<div class="sc-camera-sheet" id="cameraSheet" hidden>
+    <video id="cameraVideo" playsinline muted></video>
+    <div class="sc-camera-frame" aria-hidden="true"></div>
+    <button type="button" class="sc-btn sc-btn-light" id="cameraClose">Cancel</button>
+</div>
+
+<div class="sc-toast" id="toast" role="status" hidden></div>
+
+<script>
+(function () {
+    'use strict';
+    var canOpenRecord = @(canOpenRecord ? "true" : "false");
+    var $ = function (id) { return document.getElementById(id); };
+
+    // ---------------------------------------------------------------- helpers
+    function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+    function api(method, url, body) {
+        return fetch(url, {
+            method: method,
+            credentials: 'same-origin',
+            headers: body ? { 'Content-Type': 'application/json' } : {},
+            body: body ? JSON.stringify(body) : undefined
+        }).then(function (r) {
+            if (r.status === 401) { location.href = '/Account/Login?returnUrl=%2FScan'; throw new Error('Signed out'); }
+            return r.json().catch(function () { return {}; }).then(function (data) { return { ok: r.ok, status: r.status, data: data }; });
+        });
+    }
+    var toastTimer;
+    function toast(msg, tone) {
+        var t = $('toast'); t.textContent = msg; t.className = 'sc-toast ' + (tone || ''); t.hidden = false;
+        clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, 2200);
+    }
+    function buzz(ok) { try { if (navigator.vibrate) navigator.vibrate(ok ? 40 : [60, 60, 60]); } catch (e) {} }
+    function tone(status) {
+        if (/Damaged|Repair|Replacement/i.test(status)) return 'warn';
+        if (/Retired|Sold|Discarded/i.test(status)) return 'off';
+        if (/Loaned/i.test(status)) return 'gold';
+        return 'ok';
+    }
+
+    // ---------------------------------------------------------------- tabs
+    document.querySelectorAll('.sc-tab').forEach(function (tab) {
+        tab.addEventListener('click', function () {
+            document.querySelectorAll('.sc-tab').forEach(function (t) { t.classList.toggle('is-on', t === tab); t.setAttribute('aria-selected', t === tab); });
+            document.querySelectorAll('.sc-panel').forEach(function (p) { p.hidden = p.id !== 'panel-' + tab.dataset.tab; });
+            if (tab.dataset.tab === 'check') loadCheckSetup();
+            var input = document.querySelector('.sc-panel:not([hidden]) input');
+            if (input) input.focus();
+        });
+    });
+
+    // ---------------------------------------------------------------- look up
+    var recent = [];
+    function assetCard(a) {
+        var row = function (k, v) { return v ? '<div class="sc-row"><span>' + k + '</span><strong>' + esc(v) + '</strong></div>' : ''; };
+        return '<article class="sc-card sc-asset">' +
+            '<div class="sc-asset-head"><div><h2>' + esc(a.assetName) + '</h2><p class="sc-tag">' + esc(a.tagCode) + '</p></div>' +
+            '<span class="sc-chip ' + tone(a.status) + '">' + esc(a.statusLabel) + '</span></div>' +
+            row('Category', a.category) + row('Department', a.department) + row('Location', a.location) +
+            row('Holder', a.custodian) + row('Condition', a.condition) + row('Brand', a.brand) +
+            row('Serial no.', a.serialNumber) + row('RFID', a.rfidCode) +
+            (a.notes ? '<p class="sc-notes">' + esc(a.notes) + '</p>' : '') +
+            (canOpenRecord ? '<a class="sc-btn sc-btn-ghost sc-wide" href="/Assets/Detail/' + a.id + '">Open full record</a>' : '') +
+            '</article>';
+    }
+    function lookup(code) {
+        code = (code || '').trim();
+        if (!code) return;
+        $('lookupResult').innerHTML = '<div class="sc-card sc-loading">Looking up ' + esc(code) + '…</div>';
+        api('GET', '/api/assets/lookup?code=' + encodeURIComponent(code)).then(function (r) {
+            if (r.ok) {
+                buzz(true);
+                $('lookupResult').innerHTML = assetCard(r.data);
+                recent = [r.data].concat(recent.filter(function (x) { return x.id !== r.data.id; })).slice(0, 8);
+                renderRecent();
+            } else {
+                buzz(false);
+                $('lookupResult').innerHTML = '<div class="sc-card sc-miss"><h2>Not found</h2><p>No asset matches <strong>' + esc(code) +
+                    '</strong>. Check the code, or the tag may not be registered yet.</p></div>';
+            }
+        }).catch(function () { $('lookupResult').innerHTML = '<div class="sc-card sc-miss"><h2>No connection</h2><p>Check your signal and try again.</p></div>'; });
+    }
+    function renderRecent() {
+        $('recentWrap').hidden = recent.length === 0;
+        $('recentList').innerHTML = recent.map(function (a) {
+            return '<li><button type="button" data-code="' + esc(a.tagCode) + '"><span>' + esc(a.assetName) + '</span><small>' + esc(a.tagCode) + '</small></button></li>';
+        }).join('');
+    }
+    $('recentList').addEventListener('click', function (e) {
+        var b = e.target.closest('button[data-code]'); if (b) lookup(b.dataset.code);
+    });
+    $('lookupForm').addEventListener('submit', function (e) {
+        e.preventDefault(); var i = $('lookupCode'); lookup(i.value); i.select();
+    });
+
+    // ---------------------------------------------------------------- stock check
+    var sessionId = null, counts = { Found: 0, Unexpected: 0, Duplicate: 0 }, lookupsLoaded = false, busy = false, queue = [];
+    function loadCheckSetup() {
+        if (!$('checkSetup')) return;
+        if (!lookupsLoaded) {
+            api('GET', '/api/lookups').then(function (r) {
+                if (!r.ok) return;
+                lookupsLoaded = true;
+                $('checkDept').insertAdjacentHTML('beforeend', r.data.departments.map(function (d) { return '<option value="' + d.id + '">' + esc(d.name) + '</option>'; }).join(''));
+                $('checkLoc').insertAdjacentHTML('beforeend', r.data.locations.map(function (l) { return '<option value="' + l.id + '">' + esc(l.name) + '</option>'; }).join(''));
+            });
+        }
+        api('GET', '/api/stock-verification/sessions').then(function (r) {
+            var open = (r.ok ? r.data : []).filter(function (s) { return s.status === 'InProgress'; });
+            $('openChecksCard').hidden = open.length === 0;
+            $('openChecks').innerHTML = open.map(function (s) {
+                return '<li><button type="button" data-session="' + s.id + '"><span>Check #' + s.id + ' · ' + esc(s.initiatedBy) + '</span><small>' +
+                    s.foundCount + ' found · started ' + new Date(s.startedAt).toLocaleString() + '</small></button></li>';
+            }).join('');
+        });
+    }
+    function showRun(session) {
+        sessionId = session.id;
+        counts = { Found: session.foundCount || 0, Unexpected: session.unexpectedCount || 0, Duplicate: session.duplicateCount || 0 };
+        renderCounts();
+        $('checkSetup').hidden = true; $('checkDone').hidden = true; $('checkRun').hidden = false;
+        $('checkFeed').innerHTML = '';
+        $('checkCode').focus();
+    }
+    function renderCounts() {
+        $('cFound').textContent = counts.Found; $('cUnexpected').textContent = counts.Unexpected;
+        $('cDuplicate').textContent = counts.Duplicate;
+    }
+    function addScan(code) {
+        code = (code || '').trim(); if (!code || !sessionId) return;
+        queue.push(code); pump();
+    }
+    function pump() {
+        if (busy || queue.length === 0) return;
+        busy = true;
+        var code = queue.shift();
+        api('POST', '/api/stock-verification/sessions/' + sessionId + '/scans', { rfidCode: code }).then(function (r) {
+            var result = r.ok ? (r.data.result || 'Found') : 'Error';
+            var key = /Found/i.test(result) ? 'Found' : /Unexpected/i.test(result) ? 'Unexpected' : /Dup/i.test(result) ? 'Duplicate' : null;
+            if (key) { counts[key]++; renderCounts(); }
+            buzz(key === 'Found');
+            var cls = key === 'Found' ? 'ok' : key === 'Duplicate' ? 'off' : key ? 'warn' : 'err';
+            var label = key === 'Duplicate' ? 'Repeat' : key;
+            $('checkFeed').insertAdjacentHTML('afterbegin', '<li><span class="sc-chip ' + cls + '">' + esc(label || 'Error') + '</span><code>' + esc(code) + '</code>' +
+                (r.ok ? '' : '<small>' + esc(r.data.error || 'Could not record') + '</small>') + '</li>');
+        }).catch(function () {
+            queue.unshift(code); toast('Connection lost. Retrying…', 'err');
+            return new Promise(function (res) { setTimeout(res, 2000); });
+        }).then(function () { busy = false; pump(); });
+    }
+    if ($('startCheck')) {
+        $('startCheck').addEventListener('click', function () {
+            var dept = $('checkDept').value, loc = $('checkLoc').value;
+            api('POST', '/api/stock-verification/sessions', { departmentId: dept ? +dept : null, locationId: loc ? +loc : null }).then(function (r) {
+                if (r.ok) { showRun(r.data); toast('Stock check started', 'ok'); } else toast(r.data.error || 'Could not start', 'err');
+            });
+        });
+        $('openChecks').addEventListener('click', function (e) {
+            var b = e.target.closest('button[data-session]');
+            if (!b) return;
+            api('GET', '/api/stock-verification/sessions').then(function (r) {
+                var s = (r.ok ? r.data : []).filter(function (x) { return x.id === +b.dataset.session; })[0];
+                showRun(s || { id: +b.dataset.session });
+            });
+        });
+        $('checkForm').addEventListener('submit', function (e) {
+            e.preventDefault(); var i = $('checkCode'); addScan(i.value); i.value = ''; i.focus();
+        });
+        $('finishCheck').addEventListener('click', function () {
+            if (queue.length || busy) { toast('Still saving scans…'); return; }
+            if (!confirm('Finish this stock check? Assets not scanned will be counted as missing.')) return;
+            api('POST', '/api/stock-verification/sessions/' + sessionId + '/complete').then(function (r) {
+                if (!r.ok) { toast(r.data.error || 'Could not finish', 'err'); return; }
+                var s = r.data;
+                $('checkRun').hidden = true; $('checkDone').hidden = false;
+                $('checkDone').innerHTML = '<div class="sc-card"><h2>Stock check #' + s.id + ' finished</h2>' +
+                    '<div class="sc-counts sc-counts-final"><div><strong>' + s.foundCount + '</strong><span>Found</span></div>' +
+                    '<div><strong>' + s.missingCount + '</strong><span>Missing</span></div>' +
+                    '<div><strong>' + s.unexpectedCount + '</strong><span>Unexpected</span></div>' +
+                    '<div><strong>' + s.duplicateCount + '</strong><span>Repeat</span></div></div>' +
+                    '<a class="sc-btn sc-btn-ghost sc-wide" href="/StockVerification">See it on the web</a>' +
+                    '<button type="button" class="sc-btn sc-btn-primary sc-wide" id="newCheck">Start another</button></div>';
+                $('newCheck').addEventListener('click', function () { $('checkDone').hidden = true; $('checkSetup').hidden = false; loadCheckSetup(); });
+                sessionId = null;
+            });
+        });
+    }
+
+    // ---------------------------------------------------------------- camera barcode scanning
+    // Uses the browser's built-in BarcodeDetector (Chrome on Android). The button stays hidden elsewhere.
+    var detector = null, stream = null, scanTarget = null, scanning = false;
+    if ('BarcodeDetector' in window) {
+        try {
+            detector = new window.BarcodeDetector({ formats: ['code_128', 'code_39', 'qr_code', 'ean_13', 'data_matrix', 'itf'] });
+            document.querySelectorAll('.sc-camera').forEach(function (b) { b.hidden = false; });
+        } catch (e) { detector = null; }
+    }
+    function closeCamera() {
+        scanning = false;
+        if (stream) stream.getTracks().forEach(function (t) { t.stop(); });
+        stream = null; $('cameraSheet').hidden = true;
+    }
+    function tick() {
+        if (!scanning) return;
+        detector.detect($('cameraVideo')).then(function (codes) {
+            if (codes.length) {
+                var value = codes[0].rawValue; closeCamera();
+                if (scanTarget === 'checkCode') addScan(value); else { $('lookupCode').value = value; lookup(value); }
+                return;
+            }
+            requestAnimationFrame(tick);
+        }).catch(function () { requestAnimationFrame(tick); });
+    }
+    document.querySelectorAll('.sc-camera').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            scanTarget = btn.dataset.target;
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }).then(function (s) {
+                stream = s; var v = $('cameraVideo'); v.srcObject = s; v.play();
+                $('cameraSheet').hidden = false; scanning = true; requestAnimationFrame(tick);
+            }).catch(function () { toast('Camera not available. Allow camera access and try again.', 'err'); });
+        });
+    });
+    $('cameraClose').addEventListener('click', closeCamera);
+})();
+</script>
+</body>
+</html>

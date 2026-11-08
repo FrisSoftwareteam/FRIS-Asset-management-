@@ -152,7 +152,8 @@ public class MobileApiController(
     {
         if (!roleGuard.HasAnyRole(this, RoleName.Admin, RoleName.Backoffice, RoleName.Auditor)) return Denied();
         if (string.IsNullOrWhiteSpace(request.RfidCode)) return BadRequest(new { error = "rfidCode is required." });
-        var (ok, message, scan) = await stockVerification.ProcessScanAsync(id, request.RfidCode.Trim(), roleGuard.GetCurrentUserName(HttpContext));
+        var code = await ToRfidCodeAsync(request.RfidCode.Trim(), HttpContext.RequestAborted);
+        var (ok, message, scan) = await stockVerification.ProcessScanAsync(id, code, roleGuard.GetCurrentUserName(HttpContext));
         if (!ok) return BadRequest(new { error = message });
         return Ok(new { message, scan!.Id, scan.RfidCode, scan.AssetId, result = scan.ResultType, scan.ScannedAt });
     }
@@ -166,7 +167,8 @@ public class MobileApiController(
         var results = new List<object>();
         foreach (var code in (request.RfidCodes ?? []).Select(c => c?.Trim() ?? "").Where(c => c.Length > 0).Take(2000))
         {
-            var (ok, message, scan) = await stockVerification.ProcessScanAsync(id, code, user);
+            var rfid = await ToRfidCodeAsync(code, HttpContext.RequestAborted);
+            var (ok, message, scan) = await stockVerification.ProcessScanAsync(id, rfid, user);
             results.Add(new { rfidCode = code, ok, result = scan?.ResultType, assetId = scan?.AssetId, message });
             if (!ok && message.Contains("not found", StringComparison.OrdinalIgnoreCase)) break;
         }
@@ -209,6 +211,23 @@ public class MobileApiController(
         var rfid = (await db.RfidTags.Collection.Find(t => t.AssetId != null).ToListAsync(ct))
             .GroupBy(t => t.AssetId!.Value).ToDictionary(g => g.Key, g => g.First().RfidCode);
         return new LookupContext(departments, locations, categories, staff, rfid);
+    }
+
+    /// <summary>
+    /// Stock checks match on the stored RFID code. A scanned barcode or typed tag code is turned
+    /// into that asset's RFID code first, so it counts as Found rather than Unexpected.
+    /// </summary>
+    private async Task<string> ToRfidCodeAsync(string code, CancellationToken ct)
+    {
+        var exact = new BsonRegularExpression($"^{Regex.Escape(code)}$", "i");
+        var tag = await db.RfidTags.Collection.Find(Builders<RfidTag>.Filter.Regex(t => t.RfidCode, exact)).FirstOrDefaultAsync(ct);
+        if (tag is not null) return tag.RfidCode;
+
+        var ctx = new LookupContext(new(), new(), new(), new(), new());
+        var asset = await FindAssetAsync(code, ctx, ct);
+        if (asset is null) return code;
+        var assetTag = await db.RfidTags.Collection.Find(t => t.AssetId == asset.Id).FirstOrDefaultAsync(ct);
+        return assetTag?.RfidCode ?? code;
     }
 
     private async Task<Asset?> FindAssetAsync(string code, LookupContext ctx, CancellationToken ct)

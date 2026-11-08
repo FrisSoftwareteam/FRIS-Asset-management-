@@ -43,6 +43,11 @@ public sealed class PortalAccessMiddleware(RequestDelegate next)
                 await WriteJsonErrorAsync(context, StatusCodes.Status401Unauthorized, "Sign in first: POST /api/auth/login, then send the token as 'Authorization: Bearer <token>'.");
                 return;
             }
+
+            // Signed in on the web: API controllers check roles themselves, so don't send the
+            // browser to a portal page (an HTML redirect breaks fetch calls from the Scan screen).
+            await next(context);
+            return;
         }
 
         var role = roleGuard.GetCurrentRole(context);
