@@ -236,3 +236,5 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .sc-uploaded h2 { color: var(--ok); }
 #uploadBatch:disabled { opacity: 0.5; }
 #uploadBatch { margin: 0 0 0.9rem; }
+
+.sc-lastread { margin: 0.5rem 0 0; font-family: ui-monospace, Menlo, monospace; font-size: 0.78rem; color: var(--muted); word-break: break-all; }

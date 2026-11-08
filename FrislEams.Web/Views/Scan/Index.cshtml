@@ -497,6 +497,40 @@
     });
     $('cameraClose').addEventListener('click', closeCamera);
 
+    // ---------------------------------------------------------------- handheld readers
+    // Readers such as the WING820 type the tag into the focused box ("keyboard wedge"). Some send
+    // Enter afterwards, some don't. A burst of fast keystrokes is a scan, so submit it once the
+    // burst ends. Also keep the cursor in the scan box so a trigger press is never lost.
+    var scanInputs = ['lookupCode', 'checkCode', 'auditCode'].map($).filter(Boolean);
+    scanInputs.forEach(function (input) {
+        var last = 0, fast = 0, timer = null;
+        var note = document.createElement('p'); note.className = 'sc-lastread'; note.hidden = true;
+        input.closest('form').appendChild(note);
+        input.addEventListener('keydown', function (e) {
+            var now = Date.now(); fast = (now - last < 60) ? fast + 1 : 0; last = now;
+            if (e.key === 'Tab' && input.value.trim()) { e.preventDefault(); input.form.requestSubmit(); }
+        });
+        input.addEventListener('input', function () {
+            clearTimeout(timer);
+            var v = input.value.trim();
+            if (v) { note.hidden = false; note.textContent = 'Reader sent: ' + v + ' (' + v.length + ' characters)'; }
+            // Text injected without key events (some wedges "paste" the value) or typed in a fast burst.
+            var injected = Date.now() - last > 500;
+            if (v.length >= 6 && (fast >= 4 || injected)) {
+                timer = setTimeout(function () { if (input.value.trim()) input.form.requestSubmit(); }, 180);
+            }
+        });
+    });
+    function focusScan() {
+        var panel = document.querySelector('.sc-panel:not([hidden])');
+        var input = panel && panel.querySelector('#lookupCode, #checkCode, #auditCode');
+        if (input && input.offsetParent !== null && document.activeElement !== input &&
+            !(document.activeElement && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName))) input.focus();
+    }
+    document.addEventListener('click', function () { setTimeout(focusScan, 0); });
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) focusScan(); });
+    window.addEventListener('focus', focusScan);
+
     // Open the default tab (Audit for auditors, Look up for everyone else).
     var first = document.querySelector('.sc-tab[data-tab="@defaultTab"]') || document.querySelector('.sc-tab');
     if (first) first.click();
