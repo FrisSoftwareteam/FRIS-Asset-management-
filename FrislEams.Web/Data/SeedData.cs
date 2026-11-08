@@ -196,8 +196,7 @@ public static class SeedData
             new Staff { StaffId = "FR-007", FullName = "Gbenga Oluwole", Email = "gbenga.o@firstregistrars.ng", PhoneNumber = "0817-777-7777", Role = "Staff", DepartmentId = depts["IT"] },
             new Staff { StaffId = "FR-008", FullName = "Hauwa Abdullahi", Email = "hauwa.a@firstregistrars.ng", PhoneNumber = "0818-888-8888", Role = "Staff", DepartmentId = depts["LEG"] },
             new Staff { StaffId = "FR-009", FullName = "Emmanuel", Email = "emmanuel@firstregistrars.ng", PhoneNumber = "0819-999-9999", Role = "Staff", DepartmentId = depts["IT"] },
-            new Staff { StaffId = "FR-010", FullName = "Abayomi", Email = "abayomi@firstregistrars.ng", PhoneNumber = "0820-000-0000", Role = "Staff", DepartmentId = depts["IT"] },
-            new Staff { StaffId = "FR-011", FullName = "Ngozi Abara", Email = "ithod@firstregistrars.ng", PhoneNumber = "0821-111-1111", Role = "DepartmentHead", DepartmentId = depts["IT"] }
+            new Staff { StaffId = "FR-010", FullName = "Abayomi", Email = "abayomi@firstregistrars.ng", PhoneNumber = "0820-000-0000", Role = "Staff", DepartmentId = depts["IT"] }
         ]);
         db.SaveChanges();
     }
@@ -218,7 +217,6 @@ public static class SeedData
             new UserAccount { Username = "Staff4", Password = "January2021###", Role = "Staff", DisplayName = "Staff 4" },
             new UserAccount { Username = "emmanuel", Password = "Washington", Role = "Staff", DisplayName = "Emmanuel" },
             new UserAccount { Username = "abayomi", Password = "Washington", Role = "Staff", DisplayName = "Abayomi" },
-            new UserAccount { Username = "ithod", Password = "HodIt1", Role = "DepartmentHead", DisplayName = "Ngozi Abara" },
             new UserAccount { Username = "staff", Password = "staff123", Role = "Staff", DisplayName = "Staff Member" },
             new UserAccount { Username = "viewer", Password = "viewer123", Role = "Viewer", DisplayName = "Read-Only Viewer" }
         ]);
