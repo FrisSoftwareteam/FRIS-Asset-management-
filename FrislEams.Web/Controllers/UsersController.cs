@@ -46,7 +46,6 @@ public class UsersController(AppDbContext db, RoleGuard roleGuard, SystemAuditSe
         ViewBag.Role = role;
         ViewBag.Status = status;
         ViewBag.DepartmentNames = (await db.Departments.AsQueryable().ToListAsync()).ToDictionary(d => d.Id, d => d.Name);
-        ViewBag.CanDelete = roleGuard.HasAnyRole(this, RoleName.Admin);
         ViewBag.CurrentUsername = HttpContext.Session.GetString("LoginUsername");
         return View(users);
     }
@@ -140,45 +139,6 @@ public class UsersController(AppDbContext db, RoleGuard roleGuard, SystemAuditSe
         await db.SaveChangesAsync();
         await audit.LogAsync(HttpContext.Session.GetString("LoginUsername") ?? "system", "Reset Password", "UserAccount", id.ToString());
         TempData["Success"] = $"Password reset for '{user.DisplayName}'.";
-        return RedirectToAction(nameof(Index));
-    }
-
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Delete(int id)
-    {
-        // Deleting is permanent, so only Admin can do it (Backoffice can still deactivate).
-        if (!roleGuard.HasAnyRole(this, RoleName.Admin)) return Forbid();
-
-        var user = await db.UserAccounts.FindAsync(id);
-        if (user is null)
-        {
-            TempData["Error"] = "That user no longer exists.";
-            return RedirectToAction(nameof(Index));
-        }
-
-        var currentUsername = HttpContext.Session.GetString("LoginUsername");
-        if (string.Equals(user.Username, currentUsername, StringComparison.OrdinalIgnoreCase))
-        {
-            TempData["Error"] = "You can't delete the account you're signed in with.";
-            return RedirectToAction(nameof(Index));
-        }
-
-        if (string.Equals(user.Role, RoleName.Admin, StringComparison.OrdinalIgnoreCase))
-        {
-            var otherActiveAdmins = await db.UserAccounts.AsQueryable()
-                .CountAsync(u => u.Id != id && u.IsActive && u.Role == RoleName.Admin);
-            if (otherActiveAdmins == 0)
-            {
-                TempData["Error"] = $"'{user.DisplayName}' is the only active Admin. Create or activate another Admin first.";
-                return RedirectToAction(nameof(Index));
-            }
-        }
-
-        db.UserAccounts.Remove(user);
-        await db.SaveChangesAsync();
-        await audit.LogAsync(currentUsername ?? "system", "Delete User", "UserAccount", id.ToString(), user.Username, null);
-        TempData["Success"] = $"User '{user.DisplayName}' was deleted.";
         return RedirectToAction(nameof(Index));
     }
 
