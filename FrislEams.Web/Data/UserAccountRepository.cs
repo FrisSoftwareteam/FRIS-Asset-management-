@@ -26,6 +26,13 @@ public static class UserAccountRepository
     {
         var collection = db.UserAccounts.Collection;
 
+        // Only create the built-in accounts on a brand-new database. Once any account exists,
+        // admins own them: passwords, deactivations and deletions must survive a restart.
+        if (await collection.CountDocumentsAsync(FilterDefinition<UserAccount>.Empty, cancellationToken: cancellationToken) > 0)
+        {
+            return;
+        }
+
         foreach (var (username, password, role, displayName) in RequiredUsers)
         {
             await EnsureUserAsync(db, collection, username, password, role, displayName, cancellationToken);
