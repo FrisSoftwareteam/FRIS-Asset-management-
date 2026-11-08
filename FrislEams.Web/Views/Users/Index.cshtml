@@ -3,7 +3,6 @@
     ViewData["Title"] = "Users";
     var allUsers = ViewBag.AllUsers as List<FrislEams.Web.Models.UserAccount> ?? Model;
     var departmentNames = ViewBag.DepartmentNames as Dictionary<int, string> ?? new();
-    var canDelete = ViewBag.CanDelete as bool? ?? false;
     var currentUsername = ViewBag.CurrentUsername as string;
     var query = ViewBag.Query as string;
     var roleFilter = ViewBag.Role as string;
@@ -175,14 +174,6 @@
                                                 <button type="submit" class="ux-btn ux-btn-wide">Reset password</button>
                                                 <p>They'll be asked to change it when they next sign in.</p>
                                             </form>
-                                            @if (canDelete && !isSelf)
-                                            {
-                                                <form asp-action="Delete" method="post" class="ux-menu-form ux-danger-zone" data-confirm="Delete @name? This permanently removes the account and cannot be undone.">
-                                                    @Html.AntiForgeryToken()
-                                                    <input type="hidden" name="id" value="@user.Id" />
-                                                    <button type="submit" class="ux-btn ux-btn-danger ux-btn-wide">@UiIcons.Svg("trash") Delete user</button>
-                                                </form>
-                                            }
                                         </div>
                                     </details>
                                 </div>
@@ -199,12 +190,6 @@
 
 <script>
     (function () {
-        // Ask before deleting.
-        document.querySelectorAll('form[data-confirm]').forEach(function (form) {
-            form.addEventListener('submit', function (e) {
-                if (!window.confirm(form.dataset.confirm)) e.preventDefault();
-            });
-        });
         // Only one "more" menu open at a time; close on outside click.
         var menus = document.querySelectorAll('.ux-menu');
         menus.forEach(function (menu) {
