@@ -24,10 +24,26 @@ builder.Services.AddControllersWithViews();
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Services.AddSingleton<IDataProtectionProvider>(new EphemeralDataProtectionProvider());
 
 var isProduction = !builder.Environment.IsDevelopment();
-builder.Services.AddDistributedMemoryCache();
+// Sessions and the keys that protect cookies are kept in MongoDB, so people stay signed in
+// across restarts and deploys. Without a connection string (local runs) they stay in memory.
+var mongoConfiguredForState = !string.IsNullOrWhiteSpace(
+    builder.Configuration.GetSection(MongoDbOptions.SectionName).Get<MongoDbOptions>()?.ConnectionString);
+builder.Services.AddDataProtection().SetApplicationName("FrislEams");
+if (mongoConfiguredForState)
+{
+    builder.Services.AddSingleton<IMongoDatabase>(sp => sp.GetRequiredService<IMongoClient>()
+        .GetDatabase(sp.GetRequiredService<IOptions<MongoDbOptions>>().Value.DatabaseName));
+    builder.Services.AddSingleton<IConfigureOptions<Microsoft.AspNetCore.DataProtection.KeyManagement.KeyManagementOptions>>(sp =>
+        new ConfigureOptions<Microsoft.AspNetCore.DataProtection.KeyManagement.KeyManagementOptions>(o =>
+            o.XmlRepository = new MongoXmlRepository(sp.GetRequiredService<IMongoDatabase>())));
+    builder.Services.AddSingleton<Microsoft.Extensions.Caching.Distributed.IDistributedCache, MongoDistributedCache>();
+}
+else
+{
+    builder.Services.AddDistributedMemoryCache();
+}
 builder.Services.Configure<CookiePolicyOptions>(options =>
 {
     options.MinimumSameSitePolicy = SameSiteMode.Lax;
