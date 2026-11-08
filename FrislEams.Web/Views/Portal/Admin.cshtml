@@ -64,12 +64,12 @@
     }
 }
 
-<div class="adm">
-    <section class="adm-hero">
+<div class="dash">
+    <section class="dash-hero">
         <div>
-            <p class="adm-eyebrow">Admin Portal · @DateTime.Now.ToString("dddd d MMMM")</p>
-            <h1 class="adm-title">@greeting, @displayName</h1>
-            <p class="adm-sub">
+            <p class="dash-eyebrow">Admin Portal · @DateTime.Now.ToString("dddd d MMMM")</p>
+            <h1 class="dash-title">@greeting, @displayName</h1>
+            <p class="dash-sub">
                 @if (pendingTotal > 0)
                 {
                     <span>You have <strong>@pendingTotal</strong> item@(pendingTotal == 1 ? "" : "s") waiting for a decision.</span>
@@ -80,81 +80,81 @@
                 }
             </p>
         </div>
-        <div class="adm-actions">
-            <a class="adm-btn adm-btn-primary" href="/Users/Create">
+        <div class="dash-actions">
+            <a class="dash-btn dash-btn-primary" href="/Users/Create">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
                 Add user
             </a>
-            <a class="adm-btn" href="/Assets/Register">
+            <a class="dash-btn" href="/Assets/Register">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
                 Register asset
             </a>
-            <a class="adm-btn" href="/AuditTrails">
+            <a class="dash-btn" href="/AuditTrails">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>
                 Audit logs
             </a>
         </div>
     </section>
 
-    <section class="adm-kpis" aria-label="Key figures">
-        <a class="adm-kpi" href="/Users">
-            <span class="adm-kpi-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
-            <span class="adm-kpi-label">Users</span>
-            <span class="adm-kpi-value">@totalUsers.ToString("N0")</span>
-            <span class="adm-kpi-meta">@activeUsers active · @(totalUsers - activeUsers) disabled</span>
+    <section class="dash-kpis" aria-label="Key figures">
+        <a class="dash-kpi" href="/Users">
+            <span class="dash-kpi-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+            <span class="dash-kpi-label">Users</span>
+            <span class="dash-kpi-value">@totalUsers.ToString("N0")</span>
+            <span class="dash-kpi-meta">@activeUsers active · @(totalUsers - activeUsers) disabled</span>
         </a>
-        <a class="adm-kpi" href="/Assets">
-            <span class="adm-kpi-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96 12 12.01l8.73-5.05M12 22.08V12"/></svg></span>
-            <span class="adm-kpi-label">Assets</span>
-            <span class="adm-kpi-value">@summary.TotalAssets.ToString("N0")</span>
-            <span class="adm-kpi-meta">@summary.ActiveAssigned in use · @summary.RegisteredUnassigned available</span>
+        <a class="dash-kpi" href="/Assets">
+            <span class="dash-kpi-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96 12 12.01l8.73-5.05M12 22.08V12"/></svg></span>
+            <span class="dash-kpi-label">Assets</span>
+            <span class="dash-kpi-value">@summary.TotalAssets.ToString("N0")</span>
+            <span class="dash-kpi-meta">@summary.ActiveAssigned in use · @summary.RegisteredUnassigned available</span>
         </a>
-        <a class="adm-kpi @(pendingTotal > 0 ? "is-alert" : "")" href="/Workflow/Requests">
-            <span class="adm-kpi-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></span>
-            <span class="adm-kpi-label">Pending approvals</span>
-            <span class="adm-kpi-value">@pendingTotal.ToString("N0")</span>
-            <span class="adm-kpi-meta">Requests, repairs, loans and receipts</span>
+        <a class="dash-kpi @(pendingTotal > 0 ? "is-alert" : "")" href="/Workflow/Requests">
+            <span class="dash-kpi-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></span>
+            <span class="dash-kpi-label">Pending approvals</span>
+            <span class="dash-kpi-value">@pendingTotal.ToString("N0")</span>
+            <span class="dash-kpi-meta">Requests, repairs, loans and receipts</span>
         </a>
-        <a class="adm-kpi" href="/RfidTags">
-            <span class="adm-kpi-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1"/></svg></span>
-            <span class="adm-kpi-label">RFID tags</span>
-            <span class="adm-kpi-value">@rfidTags.ToString("N0")</span>
-            <span class="adm-kpi-meta">@summary.ExitAlerts exit alert@(summary.ExitAlerts == 1 ? "" : "s") logged</span>
+        <a class="dash-kpi" href="/RfidTags">
+            <span class="dash-kpi-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1"/></svg></span>
+            <span class="dash-kpi-label">RFID tags</span>
+            <span class="dash-kpi-value">@rfidTags.ToString("N0")</span>
+            <span class="dash-kpi-meta">@summary.ExitAlerts exit alert@(summary.ExitAlerts == 1 ? "" : "s") logged</span>
         </a>
     </section>
 
-    <section class="adm-grid adm-grid-wide">
-        <article class="adm-card">
-            <header class="adm-card-head">
+    <section class="dash-grid dash-grid-wide">
+        <article class="dash-card">
+            <header class="dash-card-head">
                 <div>
                     <h2>System activity</h2>
                     <p>Actions recorded in the audit log, last 7 days</p>
                 </div>
-                <span class="adm-pill">@totalActivity.ToString("N0") total</span>
+                <span class="dash-pill">@totalActivity.ToString("N0") total</span>
             </header>
             @if (totalActivity == 0)
             {
-                <div class="adm-empty">No activity has been recorded in the last 7 days.</div>
+                <div class="dash-empty">No activity has been recorded in the last 7 days.</div>
             }
             else
             {
-                <div class="adm-bars" role="img" aria-label="Audit log actions per day for the last 7 days">
+                <div class="dash-bars" role="img" aria-label="Audit log actions per day for the last 7 days">
                     @for (var i = 0; i < activity.Length; i++)
                     {
                         var h = (int)Math.Round(activity[i] * 100.0 / maxActivity);
                         var isToday = i == activity.Length - 1;
-                        <div class="adm-bar-col @(isToday ? "is-today" : "")" title="@activityDays[i].ToString("ddd d MMM"): @activity[i]">
-                            <span class="adm-bar-num">@activity[i]</span>
-                            <div class="adm-bar-track"><div class="adm-bar" style="height:@(Math.Max(h, activity[i] > 0 ? 4 : 0))%"></div></div>
-                            <span class="adm-bar-day">@(isToday ? "Today" : activityDays[i].ToString("ddd"))</span>
+                        <div class="dash-bar-col @(isToday ? "is-today" : "")" title="@activityDays[i].ToString("ddd d MMM"): @activity[i]">
+                            <span class="dash-bar-num">@activity[i]</span>
+                            <div class="dash-bar-track"><div class="dash-bar" style="height:@(Math.Max(h, activity[i] > 0 ? 4 : 0))%"></div></div>
+                            <span class="dash-bar-day">@(isToday ? "Today" : activityDays[i].ToString("ddd"))</span>
                         </div>
                     }
                 </div>
             }
         </article>
 
-        <article class="adm-card">
-            <header class="adm-card-head">
+        <article class="dash-card">
+            <header class="dash-card-head">
                 <div>
                     <h2>Needs attention</h2>
                     <p>Open items across the system</p>
@@ -162,22 +162,22 @@
             </header>
             @if (!openItems.Any())
             {
-                <div class="adm-empty adm-empty-ok">
+                <div class="dash-empty dash-empty-ok">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/></svg>
                     All clear. Nothing needs your attention.
                 </div>
             }
             else
             {
-                <ul class="adm-list">
+                <ul class="dash-list">
                     @foreach (var item in openItems)
                     {
                         <li>
-                            <a class="adm-attn" href="@item.Href">
-                                <span class="adm-dot tone-@item.Tone" aria-hidden="true"></span>
-                                <span class="adm-attn-label">@item.Label</span>
-                                <span class="adm-count tone-@item.Tone">@item.Count</span>
-                                <svg class="adm-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+                            <a class="dash-attn" href="@item.Href">
+                                <span class="dash-dot tone-@item.Tone" aria-hidden="true"></span>
+                                <span class="dash-attn-label">@item.Label</span>
+                                <span class="dash-count tone-@item.Tone">@item.Count</span>
+                                <svg class="dash-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
                             </a>
                         </li>
                     }
@@ -186,32 +186,32 @@
         </article>
     </section>
 
-    <section class="adm-grid">
-        <article class="adm-card">
-            <header class="adm-card-head">
+    <section class="dash-grid">
+        <article class="dash-card">
+            <header class="dash-card-head">
                 <div>
                     <h2>Assets by status</h2>
                     <p>@summary.TotalAssets.ToString("N0") assets in the register</p>
                 </div>
-                <a class="adm-link" href="/Assets">View register</a>
+                <a class="dash-link" href="/Assets">View register</a>
             </header>
             @if (summary.TotalAssets == 0)
             {
-                <div class="adm-empty">No assets registered yet. <a class="adm-link" href="/Assets/Register">Register the first one</a>.</div>
+                <div class="dash-empty">No assets registered yet. <a class="dash-link" href="/Assets/Register">Register the first one</a>.</div>
             }
             else
             {
-                <div class="adm-stack" role="img" aria-label="Share of assets by status">
+                <div class="dash-stack" role="img" aria-label="Share of assets by status">
                     @foreach (var b in statusBuckets.Where(b => b.Count > 0))
                     {
-                        <span class="adm-stack-seg @b.Css" style="width:@((b.Count * 100.0 / statusTotal).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture))%" title="@b.Label: @b.Count"></span>
+                        <span class="dash-stack-seg @b.Css" style="width:@((b.Count * 100.0 / statusTotal).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture))%" title="@b.Label: @b.Count"></span>
                     }
                 </div>
-                <ul class="adm-legend">
+                <ul class="dash-legend">
                     @foreach (var b in statusBuckets)
                     {
                         <li class="@(b.Count == 0 ? "is-zero" : "")">
-                            <span class="adm-swatch @b.Css" aria-hidden="true"></span>
+                            <span class="dash-swatch @b.Css" aria-hidden="true"></span>
                             <span>@b.Label</span>
                             <strong>@b.Count.ToString("N0")</strong>
                         </li>
@@ -220,26 +220,26 @@
             }
         </article>
 
-        <article class="adm-card">
-            <header class="adm-card-head">
+        <article class="dash-card">
+            <header class="dash-card-head">
                 <div>
                     <h2>Users by role</h2>
                     <p>@usersByRole.Count role@(usersByRole.Count == 1 ? "" : "s") in use</p>
                 </div>
-                <a class="adm-link" href="/UserRoles">Manage roles</a>
+                <a class="dash-link" href="/UserRoles">Manage roles</a>
             </header>
             @if (!usersByRole.Any())
             {
-                <div class="adm-empty">No user accounts yet.</div>
+                <div class="dash-empty">No user accounts yet.</div>
             }
             else
             {
-                <ul class="adm-hbars">
+                <ul class="dash-hbars">
                     @foreach (var r in usersByRole)
                     {
                         <li>
-                            <span class="adm-hbar-label">@r.Key</span>
-                            <span class="adm-hbar-track"><span class="adm-hbar" style="width:@((r.Value * 100.0 / maxRole).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture))%"></span></span>
+                            <span class="dash-hbar-label">@r.Key</span>
+                            <span class="dash-hbar-track"><span class="dash-hbar" style="width:@((r.Value * 100.0 / maxRole).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture))%"></span></span>
                             <strong>@r.Value</strong>
                         </li>
                     }
@@ -248,31 +248,31 @@
         </article>
     </section>
 
-    <section class="adm-grid adm-grid-wide">
-        <article class="adm-card">
-            <header class="adm-card-head">
+    <section class="dash-grid dash-grid-wide">
+        <article class="dash-card">
+            <header class="dash-card-head">
                 <div>
                     <h2>Recent activity</h2>
                     <p>Latest entries in the audit log</p>
                 </div>
-                <a class="adm-link" href="/AuditTrails">See all</a>
+                <a class="dash-link" href="/AuditTrails">See all</a>
             </header>
             @if (!recentLogs.Any())
             {
-                <div class="adm-empty">No audit entries yet.</div>
+                <div class="dash-empty">No audit entries yet.</div>
             }
             else
             {
-                <ul class="adm-feed">
+                <ul class="dash-feed">
                     @foreach (var log in recentLogs)
                     {
                         <li>
-                            <span class="adm-avatar" aria-hidden="true">@Initials(log.Username)</span>
-                            <div class="adm-feed-body">
+                            <span class="dash-avatar" aria-hidden="true">@Initials(log.Username)</span>
+                            <div class="dash-feed-body">
                                 <div><strong>@(string.IsNullOrWhiteSpace(log.Username) ? "System" : log.Username)</strong> @log.Action
                                     @if (!string.IsNullOrWhiteSpace(log.EntityType))
                                     {
-                                        <span class="adm-tag">@log.EntityType@(string.IsNullOrWhiteSpace(log.EntityId) ? "" : $" #{log.EntityId}")</span>
+                                        <span class="dash-tag">@log.EntityType@(string.IsNullOrWhiteSpace(log.EntityId) ? "" : $" #{log.EntityId}")</span>
                                     }
                                 </div>
                                 <time datetime="@log.OccurredAt.ToString("o")">@Ago(log.OccurredAt)</time>
@@ -283,31 +283,31 @@
             }
         </article>
 
-        <article class="adm-card">
-            <header class="adm-card-head">
+        <article class="dash-card">
+            <header class="dash-card-head">
                 <div>
                     <h2>Newest accounts</h2>
                     <p>Most recently created users</p>
                 </div>
-                <a class="adm-link" href="/Users">All users</a>
+                <a class="dash-link" href="/Users">All users</a>
             </header>
             @if (!recentUsers.Any())
             {
-                <div class="adm-empty">No user accounts yet.</div>
+                <div class="dash-empty">No user accounts yet.</div>
             }
             else
             {
-                <ul class="adm-feed">
+                <ul class="dash-feed">
                     @foreach (var user in recentUsers)
                     {
                         var name = string.IsNullOrWhiteSpace(user.DisplayName) ? user.Username : user.DisplayName;
                         <li>
-                            <span class="adm-avatar" aria-hidden="true">@Initials(name)</span>
-                            <div class="adm-feed-body">
-                                <div><strong>@name</strong> <span class="adm-tag">@user.Role</span>
+                            <span class="dash-avatar" aria-hidden="true">@Initials(name)</span>
+                            <div class="dash-feed-body">
+                                <div><strong>@name</strong> <span class="dash-tag">@user.Role</span>
                                     @if (!user.IsActive)
                                     {
-                                        <span class="adm-tag adm-tag-off">Disabled</span>
+                                        <span class="dash-tag dash-tag-off">Disabled</span>
                                     }
                                 </div>
                                 <time datetime="@user.CreatedAt.ToString("o")">@user.Username · joined @Ago(user.CreatedAt)</time>

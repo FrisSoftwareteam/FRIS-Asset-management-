@@ -1,99 +1,213 @@
 @{
-    ViewData["Title"] = "Portal Overview";
-    var metrics = ViewBag.Metrics as Dictionary<string, object> ?? new();
-    var reconciliation = ViewBag.Reconciliation as FrislEams.Web.Services.ReconciliationSummary;
+    ViewData["Title"] = "Auditor Dashboard";
+    var reconciliation = ViewBag.Reconciliation as FrislEams.Web.Services.ReconciliationSummary ?? new FrislEams.Web.Services.ReconciliationSummary();
     var auditTrails = ViewBag.AuditTrails as List<FrislEams.Web.Models.AssetStatusHistory> ?? new();
+    var trailAssets = ViewBag.TrailAssets as Dictionary<int, (string TagCode, string AssetName)> ?? new();
     var exceptions = ViewBag.Exceptions as List<FrislEams.Web.Services.ExceptionRecord> ?? new();
-    var compliance = metrics.GetValueOrDefault("CompliancePercent")?.ToString() ?? "0";
-    var matched = reconciliation?.Matched ?? 0;
-    var unmatched = reconciliation?.Unmatched ?? 0;
-    var total = reconciliation?.TotalAssets ?? 1;
-    var matchedPct = total > 0 ? matched * 100.0 / total : 100;
-    var unmatchedPct = 100 - matchedPct;
+    var auditPeriods = ViewBag.AuditPeriods as int? ?? 0;
+    var displayName = Context.Session.GetString("UserName") ?? "there";
+
+    var total = reconciliation.TotalAssets;
+    var matched = reconciliation.Matched;
+    var unmatched = reconciliation.Unmatched;
+    var compliance = total == 0 ? 100.0 : reconciliation.CompliancePercent;
+    var complianceTone = compliance >= 95 ? "ok" : compliance >= 85 ? "warn" : "danger";
+
+    var rfidCount = exceptions.Count(e => e.Type == "RFID Alert");
+    var varianceCount = exceptions.Count(e => e.Type == "Audit Variance");
+    var repairCount = exceptions.Count(e => e.Type == "Pending Repair");
+    var exceptionTotal = exceptions.Count;
+
+    var summaryRows = new (string Label, int Count, string Href, string Tone)[]
+    {
+        ("RFID exit alerts", rfidCount, "/Exceptions", "danger"),
+        ("Audit variances (missing or misplaced)", varianceCount, "/Exceptions", "warn"),
+        ("Repairs awaiting review", repairCount, "/Exceptions", "info"),
+        ("Unmatched assets", unmatched, "/Reconciliation", "warn"),
+        ("Open audit sessions", reconciliation.OpenAuditSessions, "/Reconciliation", "info"),
+    };
+
+    // Ring geometry for the compliance gauge.
+    const double radius = 52;
+    var circumference = 2 * Math.PI * radius;
+    var dash = circumference * Math.Clamp(compliance, 0, 100) / 100.0;
 }
 
-<div class="portal-dash-header">
-    <span class="portal-overview-badge">Portal Overview</span>
-    <h1>Dashboard <span class="readonly-pill">Read-only</span></h1>
-</div>
-
-<div class="portal-stat-row">
-    <div class="portal-stat-card"><div class="label">Total Assets Audited</div><div class="value">@metrics.GetValueOrDefault("TotalAssetsAudited")</div></div>
-    <div class="portal-stat-card"><div class="label">Reconciled</div><div class="value">@metrics.GetValueOrDefault("Reconciled")</div></div>
-    <div class="portal-stat-card"><div class="label">Exceptions</div><div class="value">@metrics.GetValueOrDefault("Exceptions")</div></div>
-    <div class="portal-stat-card"><div class="label">Compliance</div><div class="value">@compliance%</div></div>
-</div>
-
-<div class="portal-dash-grid">
-    <div class="portal-panel">
-        <h3>Reconciliation Status</h3>
-        <div class="donut-wrap">
-            <div class="donut-chart" style="background: conic-gradient(#6a1b9a 0% @(matchedPct)%, #e1bee7 @(matchedPct)% 100%);"></div>
-            <div class="donut-legend">
-                <div class="donut-legend-item"><span class="donut-swatch" style="background:#6a1b9a"></span> Matched (@matchedPct.ToString("F1")%)</div>
-                <div class="donut-legend-item"><span class="donut-swatch" style="background:#e1bee7"></span> Unmatched (@unmatchedPct.ToString("F1")%)</div>
-            </div>
+<div class="dash">
+    <section class="dash-hero">
+        <div>
+            <p class="dash-eyebrow">Auditor Portal · @DateTime.Now.ToString("dddd d MMMM")</p>
+            <h1 class="dash-title">@DashText.Greeting(), @displayName <span class="dash-readonly">@UiIcons.Svg("eye") Read-only</span></h1>
+            <p class="dash-sub">
+                @if (total == 0)
+                {
+                    <span>The asset register is empty, so there is nothing to reconcile yet.</span>
+                }
+                else
+                {
+                    <span>The register is <strong>@compliance.ToString("0.#")%</strong> reconciled, with <strong>@exceptionTotal</strong> open exception@(exceptionTotal == 1 ? "" : "s").</span>
+                }
+            </p>
         </div>
-    </div>
-    <div>
-        <div class="portal-panel" style="margin-bottom:1rem;">
-            <h3>Audit Activity (This Month)</h3>
-            <div class="portal-stat-row" style="margin-bottom:0;grid-template-columns:repeat(3,1fr);">
-                <div class="portal-stat-card" style="padding:0.75rem;"><div class="label">Audits</div><div class="value" style="font-size:1.2rem;">@(reconciliation?.OpenAuditSessions ?? 0)</div></div>
-                <div class="portal-stat-card" style="padding:0.75rem;"><div class="label">Exceptions</div><div class="value" style="font-size:1.2rem;">@exceptions.Count</div></div>
-                <div class="portal-stat-card" style="padding:0.75rem;"><div class="label">Reports</div><div class="value" style="font-size:1.2rem;">3</div></div>
-            </div>
+        <div class="dash-actions">
+            <a class="dash-btn dash-btn-primary" href="/RfidReader">@UiIcons.Svg("wifi") Scan RFID</a>
+            <a class="dash-btn" href="/RfidReader?mode=verify">@UiIcons.Svg("scan") Verify tag</a>
+            <a class="dash-btn" href="/StockVerification">@UiIcons.Svg("check") Stock check</a>
+            <a class="dash-btn" href="/Reports">@UiIcons.Svg("chart") Reports</a>
         </div>
-        <div class="portal-panel">
-            <h3>Recent Audit Trails</h3>
-            <ul class="portal-feed">
-                @foreach (var trail in auditTrails.Take(5))
+    </section>
+
+    <section class="dash-kpis" aria-label="Key figures">
+        <a class="dash-kpi" href="/Reports">
+            <span class="dash-kpi-icon">@UiIcons.Svg("box")</span>
+            <span class="dash-kpi-label">Assets in register</span>
+            <span class="dash-kpi-value">@total.ToString("N0")</span>
+            <span class="dash-kpi-meta">Subject to audit</span>
+        </a>
+        <a class="dash-kpi" href="/Reconciliation">
+            <span class="dash-kpi-icon">@UiIcons.Svg("scale")</span>
+            <span class="dash-kpi-label">Reconciled</span>
+            <span class="dash-kpi-value">@matched.ToString("N0")</span>
+            <span class="dash-kpi-meta">@unmatched.ToString("N0") unmatched</span>
+        </a>
+        <a class="dash-kpi @(exceptionTotal > 0 ? "is-alert" : "")" href="/Exceptions">
+            <span class="dash-kpi-icon">@UiIcons.Svg("alert")</span>
+            <span class="dash-kpi-label">Open exceptions</span>
+            <span class="dash-kpi-value">@exceptionTotal.ToString("N0")</span>
+            <span class="dash-kpi-meta">Alerts, variances and repairs</span>
+        </a>
+        <a class="dash-kpi" href="/AuditScan">
+            <span class="dash-kpi-icon">@UiIcons.Svg("calendar")</span>
+            <span class="dash-kpi-label">Audit scan periods</span>
+            <span class="dash-kpi-value">@auditPeriods.ToString("N0")</span>
+            <span class="dash-kpi-meta">@reconciliation.OpenAuditSessions open audit session@(reconciliation.OpenAuditSessions == 1 ? "" : "s")</span>
+        </a>
+    </section>
+
+    <section class="dash-grid">
+        <article class="dash-card">
+            <header class="dash-card-head">
+                <div>
+                    <h2>Reconciliation</h2>
+                    <p>Register compared with what was found on audit</p>
+                </div>
+                <a class="dash-link" href="/Reconciliation">Open reconciliation</a>
+            </header>
+            <div class="dash-gauge-wrap">
+                <svg class="dash-gauge tone-@complianceTone" viewBox="0 0 120 120" role="img" aria-label="@compliance.ToString("0.#")% reconciled">
+                    <circle class="dash-gauge-track" cx="60" cy="60" r="@radius" />
+                    <circle class="dash-gauge-fill" cx="60" cy="60" r="@radius"
+                            stroke-dasharray="@DashText.Pct(dash) @DashText.Pct(circumference)" transform="rotate(-90 60 60)" />
+                    <text x="60" y="58" text-anchor="middle" class="dash-gauge-num">@compliance.ToString("0.#")%</text>
+                    <text x="60" y="76" text-anchor="middle" class="dash-gauge-cap">reconciled</text>
+                </svg>
+                <ul class="dash-legend dash-legend-1">
+                    <li><span class="dash-swatch s-use" aria-hidden="true"></span><span>Matched</span><strong>@matched.ToString("N0")</strong></li>
+                    <li><span class="dash-swatch s-repair" aria-hidden="true"></span><span>Missing or misplaced</span><strong>@unmatched.ToString("N0")</strong></li>
+                    <li><span class="dash-swatch s-free" aria-hidden="true"></span><span>Open audit sessions</span><strong>@reconciliation.OpenAuditSessions</strong></li>
+                </ul>
+            </div>
+        </article>
+
+        <article class="dash-card">
+            <header class="dash-card-head">
+                <div>
+                    <h2>Exceptions summary</h2>
+                    <p>Items that need an auditor's attention</p>
+                </div>
+                <a class="dash-link" href="/Exceptions">All exceptions</a>
+            </header>
+            <ul class="dash-list">
+                @foreach (var row in summaryRows)
                 {
                     <li>
-                        <div class="feed-title">Asset #@trail.AssetId — @trail.NewStatus</div>
-                        <div class="feed-meta">@trail.Reason · @trail.ChangedAt.ToString("dd MMM yyyy")</div>
+                        <a class="dash-attn @(row.Count == 0 ? "is-zero" : "")" href="@row.Href">
+                            <span class="dash-dot tone-@(row.Count == 0 ? "none" : row.Tone)" aria-hidden="true"></span>
+                            <span class="dash-attn-label">@row.Label</span>
+                            <span class="dash-count tone-@(row.Count == 0 ? "none" : row.Tone)">@row.Count</span>
+                            <svg class="dash-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+                        </a>
                     </li>
                 }
             </ul>
-        </div>
-    </div>
-</div>
+        </article>
+    </section>
 
-<div class="portal-panel" style="margin-top:1rem;">
-    <h3>RFID &amp; Verification</h3>
-    <div class="staff-quick-actions">
-        <a asp-controller="RfidReader" asp-action="Index" class="staff-action-btn">
-            <span class="action-ico">📡</span>
-            <span>Scan RFID Tag</span>
-        </a>
-        <a asp-controller="RfidReader" asp-action="Index" asp-route-mode="verify" class="staff-action-btn">
-            <span class="action-ico">📲</span>
-            <span>Verify RFID Tag</span>
-        </a>
-        <a asp-controller="StockVerification" asp-action="Index" class="staff-action-btn">
-            <span class="action-ico">✅</span>
-            <span>Stock Verification</span>
-        </a>
-        <a asp-controller="AuditScan" asp-action="Index" class="staff-action-btn">
-            <span class="action-ico">📅</span>
-            <span>Audit Scan Periods</span>
-        </a>
-        <a asp-controller="RfidTags" asp-action="Index" class="staff-action-btn">
-            <span class="action-ico">🏷️</span>
-            <span>RFID Tag Register</span>
-        </a>
-    </div>
-</div>
+    <section class="dash-grid dash-grid-wide">
+        <article class="dash-card">
+            <header class="dash-card-head">
+                <div>
+                    <h2>Recent audit trail</h2>
+                    <p>Latest asset status changes</p>
+                </div>
+                <a class="dash-link" href="/AuditTrails">Full audit trail</a>
+            </header>
+            @if (!auditTrails.Any())
+            {
+                <div class="dash-empty">No status changes recorded yet.</div>
+            }
+            else
+            {
+                <ul class="dash-feed">
+                    @foreach (var t in auditTrails.Take(6))
+                    {
+                        var hasAsset = trailAssets.TryGetValue(t.AssetId, out var a);
+                        <li>
+                            <span class="dash-avatar" aria-hidden="true">@DashText.Initials(t.ChangedBy)</span>
+                            <div class="dash-feed-body">
+                                <div><strong>@(hasAsset ? a.AssetName : $"Asset #{t.AssetId}")</strong>
+                                    @if (hasAsset && !string.IsNullOrWhiteSpace(a.TagCode))
+                                    {
+                                        <span class="dash-tag">@a.TagCode</span>
+                                    }
+                                </div>
+                                <div class="dash-feed-detail">
+                                    <span class="dash-status">@DashText.Humanize(t.PreviousStatus)</span>
+                                    <span class="dash-arrow" aria-label="to">→</span>
+                                    <span class="dash-status dash-status-new">@DashText.Humanize(t.NewStatus)</span>
+                                    @if (!string.IsNullOrWhiteSpace(t.Reason))
+                                    {
+                                        <span class="dash-reason">“@t.Reason”</span>
+                                    }
+                                </div>
+                                <time datetime="@t.ChangedAt.ToString("o")">@(string.IsNullOrWhiteSpace(t.ChangedBy) ? "System" : t.ChangedBy) · @DashText.Ago(t.ChangedAt)</time>
+                            </div>
+                        </li>
+                    }
+                </ul>
+            }
+        </article>
 
-<div class="portal-panel" style="margin-top:1rem;">
-    <h3>Exceptions Summary</h3>
-    @{
-        var rfidCount = exceptions.Count(e => e.Type == "RFID Alert");
-        var auditCount = exceptions.Count(e => e.Type == "Audit Variance");
-        var repairCount = exceptions.Count(e => e.Type == "Pending Repair");
-    }
-    <div class="exception-summary-item"><span>RFID Alerts</span><strong>@rfidCount</strong></div>
-    <div class="exception-summary-item"><span>Audit Variances</span><strong>@auditCount</strong></div>
-    <div class="exception-summary-item"><span>Pending Repairs</span><strong>@repairCount</strong></div>
-    <div class="exception-summary-item"><span>Unmatched Assets</span><strong>@unmatched</strong></div>
+        <article class="dash-card">
+            <header class="dash-card-head">
+                <div>
+                    <h2>Latest exceptions</h2>
+                    <p>Most recent first</p>
+                </div>
+            </header>
+            @if (!exceptions.Any())
+            {
+                <div class="dash-empty dash-empty-ok">@UiIcons.Svg("check") No open exceptions.</div>
+            }
+            else
+            {
+                <ul class="dash-list">
+                    @foreach (var e in exceptions.Take(6))
+                    {
+                        var tone = e.Severity switch { "High" => "danger", "Medium" => "warn", _ => "info" };
+                        <li>
+                            <a class="dash-attn" href="@(e.ActionUrl ?? "/Exceptions")">
+                                <span class="dash-dot tone-@tone" aria-hidden="true"></span>
+                                <span class="dash-attn-label">
+                                    <strong>@e.Type</strong> <span class="dash-tag">@e.AssetTag</span>
+                                    <span class="dash-attn-sub">@e.Description · @DashText.Ago(e.RaisedAt)</span>
+                                </span>
+                                <svg class="dash-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+                            </a>
+                        </li>
+                    }
+                </ul>
+            }
+        </article>
+    </section>
 </div>

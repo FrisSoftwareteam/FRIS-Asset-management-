@@ -28,6 +28,8 @@
         }
     }
     var portalHeaderTitle = isStaffPortal ? "Staff Portal" : $"{sessionPortal} Portal";
+    // Admin, Backoffice and Auditor share the brand UI in css/portal-dash.css.
+    var isBrandPortal = !isStaffPortal;
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -37,9 +39,10 @@
     <title>@(ViewData["Title"] != null ? ViewData["Title"] + " – " : "")FRISL EAMS | First Registrars</title>
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/portal-ui.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/portal-dash.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/portals/portal-@(portalKey).css" asp-append-version="true" />
 </head>
-<body class="portal-app @portalTheme">
+<body class="portal-app @portalTheme @(isBrandPortal ? "portal-brand" : "")">
     <div class="portal-app-shell">
         @await Html.PartialAsync(sidebarPartial)
         <div class="portal-sidebar-backdrop" id="portalSidebarBackdrop" aria-hidden="true"></div>
@@ -78,7 +81,7 @@
                     <div class="alert alert-error"><span>⚠</span> @error</div>
                 }
                 @RenderBody()
-                @if (isDashboard && !string.Equals(sessionPortal, "Admin", StringComparison.OrdinalIgnoreCase))
+                @if (isDashboard && !isBrandPortal)
                 {
                     @await Html.PartialAsync("_PortalFeatures")
                 }

@@ -1,45 +1,14 @@
-/* Auditor Portal — Purple theme */
-.portal-sidebar-auditor {
-    background: linear-gradient(180deg, #6a1b9a 0%, #4a148c 100%);
-}
-
-.portal-theme-auditor .portal-main-header-auditor {
-    border-bottom: 3px solid #6a1b9a;
-}
-
-.portal-theme-auditor .portal-header-name { color: #4a148c; }
-
-.portal-theme-auditor .portal-stat-card {
-    border-left-color: #6a1b9a;
-}
-
-.portal-theme-auditor .portal-stat-card .value { color: #4a148c; }
-
-.portal-theme-auditor .portal-panel h3 {
-    color: #4a148c;
-    border-bottom-color: #e1bee7;
-}
-
-.portal-theme-auditor .portal-spec-features { border-top: 3px solid #6a1b9a; }
-
-.portal-theme-auditor .portal-spec-goal { background: linear-gradient(135deg, #4a148c, #7b1fa2); }
-
-.portal-theme-auditor .btn-primary {
-    background: #6a1b9a;
-    border-color: #6a1b9a;
-}
-
-.portal-theme-auditor .page-header h1 { color: #4a148c; }
+/* Auditor Portal (read-only). Shared brand styles live in ../portal-dash.css. */
 
 .portal-theme-auditor .readonly-pill {
-    background: #f3e5f5;
-    color: #6a1b9a;
+    background: #edf2f8;
+    color: #12416f;
 }
 
 .portal-readonly-note {
     margin-top: 0.75rem;
     font-size: 0.8rem;
     font-style: italic;
-    color: #6a1b9a;
+    color: #12416f;
     font-weight: 600;
 }
