@@ -78,7 +78,7 @@
                     <div class="alert alert-error"><span>⚠</span> @error</div>
                 }
                 @RenderBody()
-                @if (isDashboard)
+                @if (isDashboard && !string.Equals(sessionPortal, "Admin", StringComparison.OrdinalIgnoreCase))
                 {
                     @await Html.PartialAsync("_PortalFeatures")
                 }

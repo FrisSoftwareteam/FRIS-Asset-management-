@@ -18,8 +18,27 @@ public class PortalController(AppDbContext db, DashboardService dashboardService
         ViewData["PortalName"] = PortalService.AdminPortal;
         ViewBag.Metrics = await dashboardService.GetAdminPortalMetricsAsync();
         ViewBag.Summary = await dashboardService.GetAdminMetricsFullAsync();
-        ViewBag.RecentUsers = await db.UserAccounts.AsQueryable().OrderByDescending(u => u.CreatedAt).Take(5).ToListAsync();
-        ViewBag.UserActivity = new[] { 12, 18, 15, 22, 19, 14, 20 };
+        var users = await db.UserAccounts.AsQueryable().ToListAsync();
+        ViewBag.RecentUsers = users.OrderByDescending(u => u.CreatedAt).Take(5).ToList();
+        ViewBag.UsersByRole = users
+            .GroupBy(u => string.IsNullOrWhiteSpace(u.Role) ? "Unassigned" : u.Role)
+            .OrderByDescending(g => g.Count())
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        // Real activity for the last 7 days, taken from the system audit log.
+        var today = DateTime.UtcNow.Date;
+        var since = today.AddDays(-6);
+        var recentLogs = await db.SystemAuditLogs.AsQueryable()
+            .Where(l => l.OccurredAt >= since)
+            .ToListAsync();
+        ViewBag.ActivityDays = Enumerable.Range(0, 7).Select(i => since.AddDays(i)).ToArray();
+        ViewBag.UserActivity = Enumerable.Range(0, 7)
+            .Select(i => recentLogs.Count(l => l.OccurredAt.Date == since.AddDays(i)))
+            .ToArray();
+        ViewBag.RecentLogs = await db.SystemAuditLogs.AsQueryable()
+            .OrderByDescending(l => l.OccurredAt)
+            .Take(6)
+            .ToListAsync();
         return View("Admin");
     }
 
