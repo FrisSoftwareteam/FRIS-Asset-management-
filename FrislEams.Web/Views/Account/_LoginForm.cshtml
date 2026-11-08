@@ -1,5 +1,5 @@
 @using Microsoft.Extensions.Hosting
-@inject IWebHostEnvironment Env
+@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment Env
 @{
     var action = ViewData["FormAction"] as string ?? "/Account/Login";
     var buttonText = ViewData["ButtonText"] as string ?? "Sign in";
@@ -15,7 +15,7 @@
     </div>
 }
 
-<form method="post" action="@action" class="auth-form" id="loginForm" novalidate>
+<form method="post" action="@action" class="auth-form" id="loginForm">
     @Html.AntiForgeryToken()
 
     <div class="auth-field">
