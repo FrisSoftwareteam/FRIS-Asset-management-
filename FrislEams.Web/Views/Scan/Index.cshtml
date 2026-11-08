@@ -2,6 +2,9 @@
     Layout = null;
     var canStockCheck = ViewBag.CanStockCheck as bool? ?? false;
     var canOpenRecord = ViewBag.CanOpenRecord as bool? ?? false;
+    var canAudit = ViewBag.CanAudit as bool? ?? false;
+    var defaultTab = ViewBag.DefaultTab as string ?? "lookup";
+    if (defaultTab == "audit" && !canAudit) defaultTab = "lookup";
     var displayName = ViewBag.DisplayName as string ?? "";
     var homePath = ViewBag.HomePath as string ?? "/";
 }
@@ -31,7 +34,11 @@
 </header>
 
 <nav class="sc-tabs" role="tablist">
-    <button class="sc-tab is-on" role="tab" data-tab="lookup" aria-selected="true">Look up</button>
+    @if (canAudit)
+    {
+        <button class="sc-tab" role="tab" data-tab="audit" aria-selected="false">Audit</button>
+    }
+    <button class="sc-tab" role="tab" data-tab="lookup" aria-selected="false">Look up</button>
     @if (canStockCheck)
     {
         <button class="sc-tab" role="tab" data-tab="check" aria-selected="false">Stock check</button>
@@ -39,8 +46,63 @@
 </nav>
 
 <main class="sc-main">
+    <!-- ============ AUDIT ============ -->
+    @if (canAudit)
+    {
+        <section class="sc-panel" id="panel-audit" hidden>
+            <div id="auditSetup">
+                <div class="sc-card" id="auditPeriodsCard">
+                    <h2>Choose an audit period</h2>
+                    <p class="sc-muted">Scan everything in the area, then upload. You can upload several batches into the same period.</p>
+                    <ul class="sc-list" id="auditPeriods"><li class="sc-muted">Loading…</li></ul>
+                </div>
+                <div class="sc-card">
+                    <h2>New audit period</h2>
+                    <label for="newPeriodName">Name</label>
+                    <input class="sc-field" id="newPeriodName" placeholder="e.g. Dec 2026 audit – Lagos HQ" />
+                    <label for="newPeriodEnd">Ends on</label>
+                    <input class="sc-field" id="newPeriodEnd" type="date" />
+                    <button type="button" class="sc-btn sc-btn-primary sc-wide" id="createPeriod">Create and start scanning</button>
+                </div>
+            </div>
+
+            <div id="auditRun" hidden>
+                <div class="sc-card sc-period">
+                    <div>
+                        <span class="sc-muted">Audit period</span>
+                        <h2 id="auditName"></h2>
+                        <span class="sc-muted" id="auditMeta"></span>
+                    </div>
+                    <button type="button" class="sc-btn sc-btn-ghost" id="changePeriod">Change</button>
+                </div>
+                <div class="sc-counts">
+                    <div><strong id="aTotal">0</strong><span>Scanned</span></div>
+                    <div><strong id="aKnown">0</strong><span>In register</span></div>
+                    <div><strong id="aUnknown">0</strong><span>Not found</span></div>
+                </div>
+                <form class="sc-scanbox" id="auditForm" autocomplete="off">
+                    <label for="auditCode">Scan the next tag</label>
+                    <div class="sc-inputrow">
+                        <input id="auditCode" spellcheck="false" autocapitalize="characters" placeholder="RFID or tag code" />
+                        <button type="submit" class="sc-btn sc-btn-primary">Add</button>
+                    </div>
+                    <button type="button" class="sc-btn sc-btn-ghost sc-camera" data-target="auditCode" hidden>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></svg>
+                        Scan barcode with camera
+                    </button>
+                    <p class="sc-hint">Scans are kept on this phone until you upload, even if you close the page.</p>
+                </form>
+                <button type="button" class="sc-btn sc-btn-primary sc-wide" id="uploadBatch" disabled>Upload batch</button>
+                <ul class="sc-feed" id="auditFeed"></ul>
+                <div id="auditUploads"></div>
+                <button type="button" class="sc-btn sc-btn-ghost sc-wide" id="checkPeriod">Check discrepancies for this period</button>
+                <div id="auditCheck"></div>
+            </div>
+        </section>
+    }
+
     <!-- ============ LOOK UP ============ -->
-    <section class="sc-panel" id="panel-lookup">
+    <section class="sc-panel" id="panel-lookup" hidden>
         <form class="sc-scanbox" id="lookupForm" autocomplete="off">
             <label for="lookupCode">Scan an RFID tag, barcode, or type a tag code</label>
             <div class="sc-inputrow">
@@ -158,10 +220,107 @@
             document.querySelectorAll('.sc-tab').forEach(function (t) { t.classList.toggle('is-on', t === tab); t.setAttribute('aria-selected', t === tab); });
             document.querySelectorAll('.sc-panel').forEach(function (p) { p.hidden = p.id !== 'panel-' + tab.dataset.tab; });
             if (tab.dataset.tab === 'check') loadCheckSetup();
+            if (tab.dataset.tab === 'audit') loadAuditSetup();
             var input = document.querySelector('.sc-panel:not([hidden]) input');
             if (input) input.focus();
         });
     });
+
+    // ---------------------------------------------------------------- audit
+    var store = {
+        get: function (k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } },
+        set: function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+        del: function (k) { try { localStorage.removeItem(k); } catch (e) {} }
+    };
+    var audit = { period: null, items: [] }; // items: { code, name, known }
+    function auditKey() { return 'frisl-audit-' + audit.period.id; }
+    function loadAuditSetup() {
+        if (!$('auditSetup')) return;
+        if (!$('newPeriodEnd').value) {
+            var d = new Date(); d.setDate(d.getDate() + 30); $('newPeriodEnd').value = d.toISOString().slice(0, 10);
+        }
+        api('GET', '/api/audit/periods').then(function (r) {
+            var open = (r.ok ? r.data : []).filter(function (p) { return p.status !== 'Closed'; });
+            $('auditPeriods').innerHTML = open.length ? open.map(function (p) {
+                var pending = (store.get('frisl-audit-' + p.id) || []).length;
+                return '<li><button type="button" data-period="' + p.id + '"><span>' + esc(p.name) + '</span><small>' +
+                    esc(p.status === 'DiscrepanciesChecked' ? 'Checked' : 'Open') + ' · ends ' + new Date(p.endDate).toLocaleDateString() +
+                    (pending ? ' · ' + pending + ' scans waiting to upload' : '') + '</small></button></li>';
+            }).join('') : '<li class="sc-muted">No open audit periods yet. Create one below.</li>';
+            $('auditPeriods').dataset.periods = JSON.stringify(open);
+        });
+    }
+    function startAudit(period) {
+        audit.period = period;
+        audit.items = store.get(auditKey()) || [];
+        $('auditName').textContent = period.name;
+        $('auditMeta').textContent = 'Ends ' + new Date(period.endDate).toLocaleDateString();
+        $('auditUploads').innerHTML = ''; $('auditCheck').innerHTML = '';
+        $('auditSetup').hidden = true; $('auditRun').hidden = false;
+        renderAudit(); $('auditCode').focus();
+    }
+    function renderAudit() {
+        var known = audit.items.filter(function (i) { return i.known; }).length;
+        $('aTotal').textContent = audit.items.length; $('aKnown').textContent = known; $('aUnknown').textContent = audit.items.length - known;
+        $('uploadBatch').disabled = audit.items.length === 0;
+        $('uploadBatch').textContent = audit.items.length ? 'Upload batch (' + audit.items.length + ' tags)' : 'Upload batch';
+        $('auditFeed').innerHTML = audit.items.slice().reverse().map(function (i) {
+            return '<li><span class="sc-chip ' + (i.known === null ? 'off' : i.known ? 'ok' : 'warn') + '">' +
+                (i.known === null ? 'Checking' : i.known ? 'In register' : 'Not found') + '</span><code>' + esc(i.code) + '</code>' +
+                (i.name ? '<small class="sc-ok">' + esc(i.name) + '</small>' : '') + '</li>';
+        }).join('');
+        store.set(auditKey(), audit.items);
+    }
+    function addAuditCode(code) {
+        code = (code || '').trim(); if (!code || !audit.period) return;
+        if (audit.items.some(function (i) { return i.code.toLowerCase() === code.toLowerCase(); })) { buzz(false); toast('Already scanned: ' + code); return; }
+        var item = { code: code, name: '', known: null };
+        audit.items.push(item); renderAudit();
+        api('GET', '/api/assets/lookup?code=' + encodeURIComponent(code)).then(function (r) {
+            item.known = r.ok; item.name = r.ok ? r.data.assetName + ' · ' + (r.data.location || r.data.department || '') : '';
+            buzz(r.ok); renderAudit();
+        }).catch(function () { item.known = false; renderAudit(); });
+    }
+    if ($('auditSetup')) {
+        $('auditPeriods').addEventListener('click', function (e) {
+            var b = e.target.closest('button[data-period]'); if (!b) return;
+            var list = JSON.parse($('auditPeriods').dataset.periods || '[]');
+            startAudit(list.filter(function (p) { return p.id === +b.dataset.period; })[0]);
+        });
+        $('createPeriod').addEventListener('click', function () {
+            var name = $('newPeriodName').value.trim();
+            if (!name) { toast('Give the audit period a name', 'err'); $('newPeriodName').focus(); return; }
+            api('POST', '/api/audit/periods', { name: name, endDate: $('newPeriodEnd').value || null }).then(function (r) {
+                if (r.ok) { toast('Audit period created', 'ok'); $('newPeriodName').value = ''; startAudit(r.data); }
+                else toast(r.data.error || 'Could not create the period', 'err');
+            });
+        });
+        $('changePeriod').addEventListener('click', function () { $('auditRun').hidden = true; $('auditSetup').hidden = false; loadAuditSetup(); });
+        $('auditForm').addEventListener('submit', function (e) { e.preventDefault(); var i = $('auditCode'); addAuditCode(i.value); i.value = ''; i.focus(); });
+        $('uploadBatch').addEventListener('click', function () {
+            if (!audit.items.length) return;
+            var btn = $('uploadBatch'); btn.disabled = true; btn.textContent = 'Uploading…';
+            api('POST', '/api/audit/periods/' + audit.period.id + '/upload', { codes: audit.items.map(function (i) { return i.code; }) }).then(function (r) {
+                if (!r.ok) { toast(r.data.error || 'Upload failed', 'err'); renderAudit(); return; }
+                var d = r.data;
+                $('auditUploads').insertAdjacentHTML('afterbegin', '<div class="sc-card sc-uploaded"><h2>Scan ' + d.scanNumber + ' uploaded</h2><p class="sc-muted">' +
+                    d.distinct + ' tags · ' + d.recognised + ' in the register' + (d.duplicateInBatchCount ? ' · ' + d.duplicateInBatchCount + ' repeats' : '') + '</p></div>');
+                audit.items = []; store.del(auditKey()); renderAudit(); toast('Scan ' + d.scanNumber + ' uploaded', 'ok');
+            }).catch(function () { toast('No connection. Your scans are saved; try again.', 'err'); renderAudit(); });
+        });
+        $('checkPeriod').addEventListener('click', function () {
+            if (audit.items.length && !confirm('You have ' + audit.items.length + ' scans not uploaded yet. Check anyway?')) return;
+            $('auditCheck').innerHTML = '<div class="sc-card sc-loading">Checking…</div>';
+            api('POST', '/api/audit/periods/' + audit.period.id + '/check').then(function (r) {
+                if (!r.ok) { $('auditCheck').innerHTML = '<div class="sc-card sc-miss"><p>' + esc(r.data.error || 'Could not check') + '</p></div>'; return; }
+                var d = r.data;
+                $('auditCheck').innerHTML = '<div class="sc-card"><h2>' + (d.concernCount ? d.concernCount + ' concerns found' : 'No concerns') + '</h2>' +
+                    '<p class="sc-muted">' + d.distinctScannedCount + ' distinct tags across ' + d.totalScanBatches + ' scan(s)</p>' +
+                    d.byType.map(function (t) { var label = String(t.type).replace(/([a-z])([A-Z])/g, '$1 $2'); label = label.charAt(0) + label.slice(1).toLowerCase(); return '<div class="sc-row"><span>' + esc(label) + '</span><strong>' + t.count + '</strong></div>'; }).join('') +
+                    '<a class="sc-btn sc-btn-ghost sc-wide" href="/AuditScan/Discrepancies/' + d.periodId + '">See details on the web</a></div>';
+            });
+        });
+    }
 
     // ---------------------------------------------------------------- look up
     var recent = [];
@@ -319,7 +478,9 @@
         detector.detect($('cameraVideo')).then(function (codes) {
             if (codes.length) {
                 var value = codes[0].rawValue; closeCamera();
-                if (scanTarget === 'checkCode') addScan(value); else { $('lookupCode').value = value; lookup(value); }
+                if (scanTarget === 'checkCode') addScan(value);
+                else if (scanTarget === 'auditCode') addAuditCode(value);
+                else { $('lookupCode').value = value; lookup(value); }
                 return;
             }
             requestAnimationFrame(tick);
@@ -335,6 +496,10 @@
         });
     });
     $('cameraClose').addEventListener('click', closeCamera);
+
+    // Open the default tab (Audit for auditors, Look up for everyone else).
+    var first = document.querySelector('.sc-tab[data-tab="@defaultTab"]') || document.querySelector('.sc-tab');
+    if (first) first.click();
 })();
 </script>
 </body>

@@ -12,6 +12,9 @@ public class ScanController(RoleGuard roleGuard) : Controller
     {
         ViewData["Title"] = "Scan";
         ViewBag.CanStockCheck = roleGuard.HasAnyRole(this, RoleName.Admin, RoleName.Backoffice, RoleName.Auditor);
+        ViewBag.CanAudit = roleGuard.HasAnyRole(this, RoleName.Admin, RoleName.Auditor);
+        // Auditors mostly use the phone for audit scans, so they land on that tab.
+        ViewBag.DefaultTab = roleGuard.HasAnyRole(this, RoleName.Auditor) ? "audit" : "lookup";
         ViewBag.CanOpenRecord = roleGuard.HasAnyRole(this, RoleName.Admin, RoleName.Backoffice, RoleName.Auditor);
         ViewBag.DisplayName = HttpContext.Session.GetString("UserName") ?? "";
         ViewBag.HomePath = PortalService.GetHomePath(roleGuard.GetCurrentRole(HttpContext));

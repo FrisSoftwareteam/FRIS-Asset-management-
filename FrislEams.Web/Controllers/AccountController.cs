@@ -117,7 +117,18 @@ public class AccountController(AppDbContext db) : Controller
             return RedirectToAction(nameof(ChangePassword));
         }
 
-        return Redirect(returnUrl ?? PortalService.GetHomePath(user.Role));
+        if (string.IsNullOrWhiteSpace(returnUrl) || returnUrl == "/")
+        {
+            // Auditors sign in on a phone to scan, so send them straight to the scanner there.
+            var agent = Request.Headers.UserAgent.ToString();
+            var onPhone = agent.Contains("Mobi", StringComparison.OrdinalIgnoreCase) || agent.Contains("Android", StringComparison.OrdinalIgnoreCase);
+            if (onPhone && string.Equals(portal, PortalService.AuditorPortal, StringComparison.OrdinalIgnoreCase))
+            {
+                return Redirect("/Scan");
+            }
+        }
+
+        return Redirect(string.IsNullOrWhiteSpace(returnUrl) || !Url.IsLocalUrl(returnUrl) ? PortalService.GetHomePath(user.Role) : returnUrl);
     }
 
     [HttpGet("/Account/ChangePassword")]

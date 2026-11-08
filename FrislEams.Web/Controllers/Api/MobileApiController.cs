@@ -26,6 +26,8 @@ public class MobileApiController(
     public sealed record StartVerificationRequest(int? DepartmentId, int? LocationId);
     public sealed record ScanRequest(string RfidCode);
     public sealed record ScanBatchRequest(List<string> RfidCodes);
+    public sealed record CreatePeriodRequest(string Name, DateTime? EndDate);
+    public sealed record UploadRequest(List<string> Codes);
 
     // ------------------------------------------------------------------ auth
 
@@ -194,6 +196,66 @@ public class MobileApiController(
         if (!roleGuard.HasAnyRole(this, RoleName.Admin, RoleName.Auditor, RoleName.Backoffice)) return Denied();
         var periods = await auditScans.GetPeriodsAsync(30);
         return Ok(periods.Select(p => new { p.Id, p.Name, p.Status, p.StartDate, p.EndDate, p.Auditor, p.DistinctScannedCount, p.DiscrepancyCount }));
+    }
+
+    [HttpPost("/api/audit/periods")]
+    public async Task<IActionResult> CreateAuditPeriod([FromBody] CreatePeriodRequest request)
+    {
+        if (!roleGuard.HasAnyRole(this, RoleName.Admin, RoleName.Auditor)) return Denied();
+        if (string.IsNullOrWhiteSpace(request.Name)) return BadRequest(new { error = "Give the audit period a name." });
+        var start = DateTime.UtcNow.Date;
+        var end = (request.EndDate ?? start.AddDays(30)).Date;
+        if (end < start) return BadRequest(new { error = "The end date can't be in the past." });
+        var period = await auditScans.CreatePeriodAsync(request.Name, start, end, roleGuard.GetCurrentUserName(HttpContext));
+        return Ok(new { period.Id, period.Name, period.Status, period.StartDate, period.EndDate, period.Auditor });
+    }
+
+    /// <summary>
+    /// Upload a batch of scanned codes as the next scan in an audit period (the scan number is
+    /// picked automatically). Barcodes and typed tag codes are mapped to RFID codes first.
+    /// </summary>
+    [HttpPost("/api/audit/periods/{id:int}/upload")]
+    public async Task<IActionResult> UploadAuditBatch(int id, [FromBody] UploadRequest request, CancellationToken ct)
+    {
+        if (!roleGuard.HasAnyRole(this, RoleName.Admin, RoleName.Auditor)) return Denied();
+        var raw = (request.Codes ?? []).Select(c => c?.Trim() ?? "").Where(c => c.Length > 0).Take(5000).ToList();
+        if (raw.Count == 0) return BadRequest(new { error = "Scan at least one tag before uploading." });
+
+        var codes = new List<string>(raw.Count);
+        foreach (var code in raw) codes.Add(await ToRfidCodeAsync(code, ct));
+
+        var existing = await auditScans.GetTemporaryScanListAsync(id);
+        var nextNumber = existing.Count == 0 ? 1 : existing.Max(s => s.ScanNumber) + 1;
+        var (ok, message, scan) = await auditScans.AddScanBatchAsync(id, nextNumber, codes, "mobile", roleGuard.GetCurrentUserName(HttpContext));
+        if (!ok) return BadRequest(new { error = message });
+
+        var known = (await db.RfidTags.Collection.Find(Builders<RfidTag>.Filter.In(t => t.RfidCode, codes.Distinct())).ToListAsync(ct))
+            .Count(t => t.AssetId.HasValue);
+        return Ok(new { message, scanNumber = scan!.ScanNumber, itemCount = scan.ItemCount, distinct = codes.Distinct(StringComparer.OrdinalIgnoreCase).Count(), recognised = known, scan.DuplicateInBatchCount });
+    }
+
+    /// <summary>Compare everything scanned in the period with the register and list the concerns.</summary>
+    [HttpPost("/api/audit/periods/{id:int}/check")]
+    public async Task<IActionResult> CheckAuditPeriod(int id)
+    {
+        if (!roleGuard.HasAnyRole(this, RoleName.Admin, RoleName.Auditor)) return Denied();
+        try
+        {
+            var result = await auditScans.CheckDiscrepanciesAsync(id, roleGuard.GetCurrentUserName(HttpContext));
+            return Ok(new
+            {
+                periodId = id,
+                result.DistinctScannedCount,
+                result.TotalScanBatches,
+                concernCount = result.Concerns.Count,
+                byType = result.Concerns.GroupBy(c => c.Type).Select(g => new { type = g.Key, count = g.Count() }),
+                concerns = result.Concerns.Take(200).Select(c => new { c.Type, c.RfidCode, c.AssetTag, c.Message })
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
     }
 
     // ------------------------------------------------------------------ helpers
