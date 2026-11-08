@@ -258,6 +258,22 @@ public class MobileApiController(
         }
     }
 
+    /// <summary>
+    /// Pull tag codes out of a file saved by a handheld reader's own app (for example the Hopeland
+    /// UHF app's "Save"). Accepts text, CSV, Excel .xlsx and old .xls. Returns the distinct codes
+    /// in the order found, so the phone can add them to an audit batch.
+    /// </summary>
+    [HttpPost("/api/reader-file/codes")]
+    [RequestSizeLimit(20 * 1024 * 1024)]
+    public async Task<IActionResult> ReaderFileCodes(IFormFile file, CancellationToken ct)
+    {
+        if (file is null || file.Length == 0) return BadRequest(new { error = "Choose the file the reader saved." });
+        using var ms = new MemoryStream();
+        await file.CopyToAsync(ms, ct);
+        var codes = ReaderFileParser.ExtractCodes(ms.ToArray());
+        return Ok(new { fileName = file.FileName, count = codes.Count, codes });
+    }
+
     // ------------------------------------------------------------------ helpers
 
     private sealed record LookupContext(
@@ -281,9 +297,12 @@ public class MobileApiController(
     /// </summary>
     private async Task<string> ToRfidCodeAsync(string code, CancellationToken ct)
     {
-        var exact = new BsonRegularExpression($"^{Regex.Escape(code)}$", "i");
-        var tag = await db.RfidTags.Collection.Find(Builders<RfidTag>.Filter.Regex(t => t.RfidCode, exact)).FirstOrDefaultAsync(ct);
-        if (tag is not null) return tag.RfidCode;
+        foreach (var candidate in CandidateCodes(code))
+        {
+            var exact = new BsonRegularExpression($"^{Regex.Escape(candidate)}$", "i");
+            var tag = await db.RfidTags.Collection.Find(Builders<RfidTag>.Filter.Regex(t => t.RfidCode, exact)).FirstOrDefaultAsync(ct);
+            if (tag is not null) return tag.RfidCode;
+        }
 
         var ctx = new LookupContext(new(), new(), new(), new(), new());
         var asset = await FindAssetAsync(code, ctx, ct);
@@ -292,33 +311,77 @@ public class MobileApiController(
         return assetTag?.RfidCode ?? code;
     }
 
-    private async Task<Asset?> FindAssetAsync(string code, LookupContext ctx, CancellationToken ct)
+    /// <summary>
+    /// The forms a scanned value can arrive in. Handheld readers may send the code with
+    /// whitespace or control characters, a 96-bit EPC padded with zeros
+    /// ("033004000001000000000000"), or the 12-character EPC that FAMAS wrote.
+    /// </summary>
+    private static List<string> CandidateCodes(string raw)
     {
-        var exact = new BsonRegularExpression($"^{Regex.Escape(code)}$", "i");
-
-        // 1. RFID code (EPC) on a tag.
-        var tag = await db.RfidTags.Collection.Find(Builders<RfidTag>.Filter.Regex(t => t.RfidCode, exact)).FirstOrDefaultAsync(ct);
-        if (tag?.AssetId is int assetId)
+        var code = Regex.Replace(raw ?? "", @"[\s\x00-\x1F]", "").Trim();
+        var list = new List<string>();
+        void Add(string c) { if (c.Length > 0 && !list.Contains(c, StringComparer.OrdinalIgnoreCase)) list.Add(c); }
+        Add(code);
+        if (Regex.IsMatch(code, "^[0-9A-Fa-f]+$"))
         {
-            var byTag = await db.Assets.Collection.Find(a => a.Id == assetId).FirstOrDefaultAsync(ct);
-            if (byTag is not null) return byTag;
+            if (code.Length > 12 && code.Length % 4 == 0) Add(code.TrimEnd('0').PadRight(12, '0'));
+            if (code.Length >= 24) Add(code[..12]);
         }
 
-        // 2. Tag code, serial number or tag number.
-        var f = Builders<Asset>.Filter;
-        var asset = await db.Assets.Collection.Find(f.Or(f.Regex(a => a.TagCode, exact), f.Regex(a => a.SerialNumber, exact), f.Regex(a => a.TagNumber, exact))).FirstOrDefaultAsync(ct);
-        if (asset is not null) return asset;
-
-        // 3. FAMAS EPCs are the tag code without dashes ("033004000001" is "033-004-000001").
-        var digits = Regex.Replace(code, "[^0-9]", "");
-        if (digits.Length == 12)
-        {
-            var dashed = $"{digits[..3]}-{digits[3..6]}-{digits[6..]}";
-            asset = await db.Assets.Collection.Find(f.Eq(a => a.TagCode, dashed)).FirstOrDefaultAsync(ct);
-        }
-
-        return asset;
+        return list;
     }
+
+    private async Task<Asset?> FindAssetAsync(string rawCode, LookupContext ctx, CancellationToken ct)
+    {
+        var f = Builders<Asset>.Filter;
+        foreach (var code in CandidateCodes(rawCode))
+        {
+            var exact = new BsonRegularExpression($"^{Regex.Escape(code)}$", "i");
+
+            // 1. RFID code (EPC) on a tag.
+            var tag = await db.RfidTags.Collection.Find(Builders<RfidTag>.Filter.Regex(t => t.RfidCode, exact)).FirstOrDefaultAsync(ct);
+            if (tag?.AssetId is int assetId)
+            {
+                var byTag = await db.Assets.Collection.Find(a => a.Id == assetId).FirstOrDefaultAsync(ct);
+                if (byTag is not null) return byTag;
+            }
+
+            // 2. Tag code, serial number or tag number.
+            var asset = await db.Assets.Collection.Find(f.Or(f.Regex(a => a.TagCode, exact), f.Regex(a => a.SerialNumber, exact), f.Regex(a => a.TagNumber, exact))).FirstOrDefaultAsync(ct);
+            if (asset is not null) return asset;
+
+            // 3. FAMAS EPCs are the tag code without dashes ("033004000001" is "033-004-000001").
+            var digits = Regex.Replace(code, "[^0-9]", "");
+            if (digits.Length == 12 && digits == code.Replace("-", ""))
+            {
+                var dashed = $"{digits[..3]}-{digits[3..6]}-{digits[6..]}";
+                asset = await db.Assets.Collection.Find(f.Eq(a => a.TagCode, dashed)).FirstOrDefaultAsync(ct);
+                if (asset is not null) return asset;
+            }
+        }
+
+        // 4. The chip's TID (some readers send this instead of the EPC). FAMAS recorded TIDs in its tag file.
+        var tidCode = CandidateCodes(rawCode).FirstOrDefault() ?? "";
+        if (tidCode.Length >= 16)
+        {
+            var row = await db.Database.GetCollection<BsonDocument>("famas_TagFile")
+                .Find(Builders<BsonDocument>.Filter.Regex("RFID_TID_CODE", new BsonRegularExpression($"^{Regex.Escape(tidCode)}$", "i")))
+                .FirstOrDefaultAsync(ct);
+            if (row is not null)
+            {
+                var tagCode = row.GetValue("assigned_tagcode", BsonNull.Value) is { IsString: true } a && a.AsString.Length > 0
+                    ? a.AsString
+                    : row.GetValue("tagcode", BsonNull.Value) is { IsString: true } t ? t.AsString : null;
+                if (tagCode is not null)
+                {
+                    return await db.Assets.Collection.Find(f.Eq(x => x.TagCode, tagCode)).FirstOrDefaultAsync(ct);
+                }
+            }
+        }
+
+        return null;
+    }
+
 
     private static object AssetDto(Asset a, LookupContext ctx) => new
     {
